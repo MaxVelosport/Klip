@@ -1,0 +1,1115 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: НейроКлип API — AI video production platform
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: auth
+  - name: users
+  - name: plans
+  - name: billing
+  - name: projects
+  - name: scenes
+  - name: pipeline
+  - name: dashboard
+  - name: admin
+  - name: presets
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: Registered + session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Log in with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Log out current session
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /auth/oauth/{provider}:
+    post:
+      operationId: oauthLogin
+      tags: [auth]
+      summary: Mock OAuth login (VK / Yandex)
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [vk, yandex]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current user profile + balance + subscription
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CurrentUser" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      operationId: updateCurrentUser
+      tags: [users]
+      summary: Update profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CurrentUser" }
+
+  /me/brand-kit:
+    get:
+      operationId: getBrandKit
+      tags: [users]
+      summary: Get my brand kit (defaults if not set)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BrandKit" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      operationId: updateBrandKit
+      tags: [users]
+      summary: Create or update brand kit (upsert)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BrandKit" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BrandKit" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /me/usage:
+    get:
+      operationId: getUsage
+      tags: [users]
+      summary: Quotas and remaining videos/tokens
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UsageInfo" }
+
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [plans]
+      summary: List subscription plans
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Plan" }
+
+  /billing/subscribe:
+    post:
+      operationId: subscribeToPlan
+      tags: [billing]
+      summary: Subscribe to plan (mock — returns confirmation_url)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubscribeRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentConfirmation" }
+
+  /billing/tokens/purchase:
+    post:
+      operationId: purchaseTokens
+      tags: [billing]
+      summary: Purchase token pack (mock — instantly credits balance)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PurchaseTokensRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentConfirmation" }
+
+  /billing/subscription/cancel:
+    post:
+      operationId: cancelSubscription
+      tags: [billing]
+      summary: Cancel subscription at period end
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /billing/payments:
+    get:
+      operationId: listPayments
+      tags: [billing]
+      summary: Payment history
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Payment" }
+
+  /billing/promo:
+    post:
+      operationId: redeemPromoCode
+      tags: [billing]
+      summary: Redeem promo code (adds tokens or discount note)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PromoCodeRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PromoCodeResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List my projects
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [draft, script_ready, images_ready, audio_ready, rendering, done, failed, all]
+        - in: query
+          name: search
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProjectSummary" }
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create draft project (Step 1)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProjectRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project with scenes
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update project metadata or step
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProjectRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Soft-delete a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /projects/{id}/duplicate:
+    post:
+      operationId: duplicateProject
+      tags: [projects]
+      summary: Duplicate project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}/scenes:
+    post:
+      operationId: addScene
+      tags: [scenes]
+      summary: Add a scene
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddSceneRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Scene" }
+
+  /projects/{id}/scenes/{sceneId}:
+    patch:
+      operationId: updateScene
+      tags: [scenes]
+      summary: Update a scene
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sceneId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSceneRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Scene" }
+    delete:
+      operationId: deleteScene
+      tags: [scenes]
+      summary: Delete a scene
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sceneId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /projects/{id}/scenes/{sceneId}/regenerate-image:
+    post:
+      operationId: regenerateSceneImage
+      tags: [scenes]
+      summary: Regenerate image for a scene (mock)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sceneId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Scene" }
+
+  /projects/{id}/generate-script:
+    post:
+      operationId: generateScript
+      tags: [pipeline]
+      summary: Run AI script generation (mock)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}/generate-images:
+    post:
+      operationId: generateImages
+      tags: [pipeline]
+      summary: Run AI image generation (mock)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}/generate-audio:
+    post:
+      operationId: generateAudio
+      tags: [pipeline]
+      summary: Run TTS audio generation (mock)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}/render:
+    post:
+      operationId: renderVideo
+      tags: [pipeline]
+      summary: Run final render (mock — instantly produces video URL)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{id}/progress:
+    get:
+      operationId: getProjectProgress
+      tags: [pipeline]
+      summary: Get current render progress
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectProgress" }
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Dashboard summary (totals, status counts, recent activity)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+
+  /presets:
+    get:
+      operationId: listPresets
+      tags: [presets]
+      summary: Lists voice / animation / music / style presets
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Presets" }
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: Admin — list users
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminUser" }
+
+  /admin/jobs:
+    get:
+      operationId: adminListJobs
+      tags: [admin]
+      summary: Admin — render queue
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RenderJob" }
+
+  /admin/jobs/{jobId}/retry:
+    post:
+      operationId: adminRetryJob
+      tags: [admin]
+      summary: Admin — retry a render job
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RenderJob" }
+
+  /admin/analytics:
+    get:
+      operationId: adminGetAnalytics
+      tags: [admin]
+      summary: Admin — analytics overview
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAnalytics" }
+
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+
+    OkResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    RegisterRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        name: { type: string }
+        consent: { type: boolean, description: "ФЗ-152 consent" }
+      required: [email, password, name, consent]
+
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/CurrentUser" }
+      required: [user]
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+
+    CurrentUser:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        role: { type: string, enum: [user, admin] }
+        planId: { type: string }
+        planName: { type: string }
+        tokenBalance: { type: integer }
+        videosUsedThisPeriod: { type: integer }
+        videosQuota: { type: integer }
+        currentPeriodEnd: { type: ["string", "null"], format: date-time }
+        cancelAtPeriodEnd: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required:
+        - id
+        - email
+        - name
+        - role
+        - planId
+        - planName
+        - tokenBalance
+        - videosUsedThisPeriod
+        - videosQuota
+        - cancelAtPeriodEnd
+        - createdAt
+
+    BrandKit:
+      type: object
+      properties:
+        brandName: { type: string, maxLength: 60 }
+        logoUrl: { type: ["string", "null"] }
+        primaryColor: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        accentColor: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        fontChoice: { type: string, enum: [inter, manrope, rubik, playfair, montserrat] }
+        watermarkText: { type: string, maxLength: 80 }
+        tagline: { type: string, maxLength: 120 }
+      required: [brandName, primaryColor, accentColor, fontChoice, watermarkText, tagline]
+
+    UsageInfo:
+      type: object
+      properties:
+        planId: { type: string }
+        planName: { type: string }
+        videosUsedThisPeriod: { type: integer }
+        videosQuota: { type: integer }
+        videosRemaining: { type: integer }
+        tokenBalance: { type: integer }
+        maxDurationMin: { type: integer }
+        currentPeriodEnd: { type: ["string", "null"], format: date-time }
+      required: [planId, planName, videosUsedThisPeriod, videosQuota, videosRemaining, tokenBalance, maxDurationMin]
+
+    Plan:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        tagline: { type: string }
+        priceMonthRub: { type: integer }
+        priceYearRub: { type: integer }
+        videosPerMonth: { type: integer }
+        maxDurationMin: { type: integer }
+        features:
+          type: array
+          items: { type: string }
+        watermark: { type: boolean }
+        recommended: { type: boolean }
+      required: [id, name, tagline, priceMonthRub, priceYearRub, videosPerMonth, maxDurationMin, features, watermark, recommended]
+
+    SubscribeRequest:
+      type: object
+      properties:
+        planId: { type: string }
+        period: { type: string, enum: [month, year] }
+      required: [planId, period]
+
+    PurchaseTokensRequest:
+      type: object
+      properties:
+        pack: { type: string, enum: [tokens_100, tokens_500, tokens_2000] }
+      required: [pack]
+
+    PaymentConfirmation:
+      type: object
+      properties:
+        paymentId: { type: string }
+        confirmationUrl: { type: string }
+        amountRub: { type: number }
+        status: { type: string }
+      required: [paymentId, confirmationUrl, amountRub, status]
+
+    Payment:
+      type: object
+      properties:
+        id: { type: string }
+        amountRub: { type: number }
+        status: { type: string }
+        purpose: { type: string }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, amountRub, status, purpose, description, createdAt]
+
+    PromoCodeRequest:
+      type: object
+      properties:
+        code: { type: string }
+      required: [code]
+
+    PromoCodeResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        message: { type: string }
+        tokensAdded: { type: integer }
+      required: [ok, message, tokensAdded]
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 100 }
+        topicDescription: { type: string, minLength: 20, maxLength: 1000 }
+        targetDurationSec: { type: integer }
+        visualStyle: { type: string }
+        voiceId: { type: string }
+        backgroundMusicId: { type: ["string", "null"] }
+        addSubtitles: { type: boolean }
+        category:
+          type: string
+          enum: [educational, historical, content, marketing, news, story, vlog, howto, kids, business]
+        aspectRatio:
+          type: ["string", "null"]
+          enum: ["16:9", "9:16", "1:1", null]
+      required: [title, topicDescription, targetDurationSec, visualStyle, voiceId, addSubtitles, category]
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        title: { type: ["string", "null"] }
+        topicDescription: { type: ["string", "null"] }
+        targetDurationSec: { type: ["integer", "null"] }
+        visualStyle: { type: ["string", "null"] }
+        voiceId: { type: ["string", "null"] }
+        backgroundMusicId: { type: ["string", "null"] }
+        addSubtitles: { type: ["boolean", "null"] }
+        currentStep: { type: ["integer", "null"] }
+        musicVolume: { type: ["integer", "null"] }
+        voiceSpeed: { type: ["number", "null"] }
+        category:
+          type: ["string", "null"]
+          enum: [educational, historical, content, marketing, news, story, vlog, howto, kids, business, null]
+        aspectRatio:
+          type: ["string", "null"]
+          enum: ["16:9", "9:16", "1:1", null]
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        topicDescription: { type: string }
+        category:
+          type: string
+          enum: [educational, historical, content, marketing, news, story, vlog, howto, kids, business]
+        targetDurationSec: { type: integer }
+        durationSec: { type: integer }
+        visualStyle: { type: string }
+        voiceId: { type: string }
+        voiceSpeed: { type: number }
+        backgroundMusicId: { type: ["string", "null"] }
+        musicVolume: { type: integer }
+        addSubtitles: { type: boolean }
+        status: { type: string, enum: [draft, script_ready, images_ready, audio_ready, rendering, done, failed] }
+        currentStep: { type: integer, minimum: 1, maximum: 6 }
+        aspectRatio: { type: string, enum: ["16:9", "9:16", "1:1"] }
+        shareToken: { type: ["string", "null"] }
+        parentProjectId: { type: ["string", "null"] }
+        finalVideoUrl: { type: ["string", "null"] }
+        thumbnailUrl: { type: ["string", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        scenes:
+          type: array
+          items: { $ref: "#/components/schemas/Scene" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required:
+        - id
+        - title
+        - topicDescription
+        - targetDurationSec
+        - durationSec
+        - visualStyle
+        - voiceId
+        - voiceSpeed
+        - musicVolume
+        - addSubtitles
+        - status
+        - currentStep
+        - scenes
+        - category
+        - createdAt
+        - updatedAt
+
+    ProjectSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string }
+        currentStep: { type: integer }
+        durationSec: { type: integer }
+        thumbnailUrl: { type: ["string", "null"] }
+        finalVideoUrl: { type: ["string", "null"] }
+        sceneCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, title, status, currentStep, durationSec, sceneCount, createdAt, updatedAt]
+
+    AddSceneRequest:
+      type: object
+      properties:
+        title: { type: string }
+        narration: { type: string }
+        imagePrompt: { type: string }
+      required: [title, narration, imagePrompt]
+
+    UpdateSceneRequest:
+      type: object
+      properties:
+        title: { type: ["string", "null"] }
+        narration: { type: ["string", "null"] }
+        imagePrompt: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"] }
+        animationType: { type: ["string", "null"] }
+        transitionType: { type: ["string", "null"] }
+        durationSec: { type: ["number", "null"] }
+        orderIndex: { type: ["integer", "null"] }
+
+    Scene:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        orderIndex: { type: integer }
+        title: { type: string }
+        narration: { type: string }
+        imagePrompt: { type: string }
+        imageUrl: { type: ["string", "null"] }
+        audioUrl: { type: ["string", "null"] }
+        durationSec: { type: number }
+        animationType: { type: string }
+        transitionType: { type: string }
+      required: [id, projectId, orderIndex, title, narration, imagePrompt, durationSec, animationType, transitionType]
+
+    ProjectProgress:
+      type: object
+      properties:
+        projectId: { type: string }
+        status: { type: string }
+        currentStep: { type: integer }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        stageLabel: { type: string }
+        etaSeconds: { type: integer }
+        queuePosition: { type: integer }
+      required: [projectId, status, currentStep, progress, stageLabel, etaSeconds, queuePosition]
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalProjects: { type: integer }
+        completedProjects: { type: integer }
+        renderingProjects: { type: integer }
+        draftProjects: { type: integer }
+        totalDurationSec: { type: integer }
+        videosThisMonth: { type: integer }
+        tokenBalance: { type: integer }
+        videosRemaining: { type: integer }
+        statusBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        recentProjects:
+          type: array
+          items: { $ref: "#/components/schemas/ProjectSummary" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityItem" }
+      required: [totalProjects, completedProjects, renderingProjects, draftProjects, totalDurationSec, videosThisMonth, tokenBalance, videosRemaining, statusBreakdown, recentProjects, recentActivity]
+
+    ActivityItem:
+      type: object
+      properties:
+        id: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, action, entityType, message, createdAt]
+
+    Presets:
+      type: object
+      properties:
+        voices:
+          type: array
+          items: { $ref: "#/components/schemas/VoicePreset" }
+        animations:
+          type: array
+          items: { $ref: "#/components/schemas/LabelValue" }
+        transitions:
+          type: array
+          items: { $ref: "#/components/schemas/LabelValue" }
+        visualStyles:
+          type: array
+          items: { $ref: "#/components/schemas/LabelValue" }
+        music:
+          type: array
+          items: { $ref: "#/components/schemas/MusicPreset" }
+        tokenPacks:
+          type: array
+          items: { $ref: "#/components/schemas/TokenPack" }
+      required: [voices, animations, transitions, visualStyles, music, tokenPacks]
+
+    VoicePreset:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        gender: { type: string }
+        sampleUrl: { type: ["string", "null"] }
+        proOnly: { type: boolean }
+      required: [id, label, gender, proOnly]
+
+    LabelValue:
+      type: object
+      properties:
+        value: { type: string }
+        label: { type: string }
+        proOnly: { type: boolean }
+      required: [value, label, proOnly]
+
+    MusicPreset:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        mood: { type: string }
+        bpm: { type: integer }
+      required: [id, label, mood, bpm]
+
+    TokenPack:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        tokens: { type: integer }
+        priceRub: { type: integer }
+        bonusPercent: { type: integer }
+      required: [id, label, tokens, priceRub, bonusPercent]
+
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string }
+        planId: { type: string }
+        tokenBalance: { type: integer }
+        projectCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, name, role, planId, tokenBalance, projectCount, createdAt]
+
+    RenderJob:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        projectTitle: { type: string }
+        userEmail: { type: string }
+        jobType: { type: string }
+        status: { type: string }
+        progress: { type: integer }
+        retryCount: { type: integer }
+        startedAt: { type: ["string", "null"], format: date-time }
+        finishedAt: { type: ["string", "null"], format: date-time }
+        errorMessage: { type: ["string", "null"] }
+      required: [id, projectId, projectTitle, userEmail, jobType, status, progress, retryCount]
+
+    AdminAnalytics:
+      type: object
+      properties:
+        totalUsers: { type: integer }
+        totalProjects: { type: integer }
+        totalRevenueRub: { type: number }
+        mau: { type: integer }
+        dau: { type: integer }
+        freeToPaidConversion: { type: number }
+        avgChequeRub: { type: number }
+        revenueByMonth:
+          type: array
+          items:
+            type: object
+            properties:
+              month: { type: string }
+              revenue: { type: number }
+            required: [month, revenue]
+        usersByPlan:
+          type: array
+          items:
+            type: object
+            properties:
+              planId: { type: string }
+              planName: { type: string }
+              count: { type: integer }
+            required: [planId, planName, count]
+      required: [totalUsers, totalProjects, totalRevenueRub, mau, dau, freeToPaidConversion, avgChequeRub, revenueByMonth, usersByPlan]
