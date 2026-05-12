@@ -1,10 +1,10 @@
 export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "promo_codes";
+    name: "Neyroclip_promo_codes";
     schema: undefined;
     columns: {
         code: import("drizzle-orm/pg-core").PgColumn<{
             name: "code";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -21,7 +21,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         discountType: import("drizzle-orm/pg-core").PgColumn<{
             name: "discount_type";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -38,7 +38,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         discountValue: import("drizzle-orm/pg-core").PgColumn<{
             name: "discount_value";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -55,7 +55,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         maxUses: import("drizzle-orm/pg-core").PgColumn<{
             name: "max_uses";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -72,7 +72,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         usedCount: import("drizzle-orm/pg-core").PgColumn<{
             name: "used_count";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -89,7 +89,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         validFrom: import("drizzle-orm/pg-core").PgColumn<{
             name: "valid_from";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -106,7 +106,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         validUntil: import("drizzle-orm/pg-core").PgColumn<{
             name: "valid_until";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -123,7 +123,7 @@ export declare const promoCodesTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         isActive: import("drizzle-orm/pg-core").PgColumn<{
             name: "is_active";
-            tableName: "promo_codes";
+            tableName: "Neyroclip_promo_codes";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;

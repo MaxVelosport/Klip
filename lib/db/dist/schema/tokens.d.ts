@@ -1,10 +1,10 @@
 export declare const tokenBalancesTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "token_balances";
+    name: "Neyroclip_token_balances";
     schema: undefined;
     columns: {
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "token_balances";
+            tableName: "Neyroclip_token_balances";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const tokenBalancesTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         balance: import("drizzle-orm/pg-core").PgColumn<{
             name: "balance";
-            tableName: "token_balances";
+            tableName: "Neyroclip_token_balances";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -38,7 +38,7 @@ export declare const tokenBalancesTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "token_balances";
+            tableName: "Neyroclip_token_balances";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -57,12 +57,12 @@ export declare const tokenBalancesTable: import("drizzle-orm/pg-core").PgTableWi
     dialect: "pg";
 }>;
 export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "token_transactions";
+    name: "Neyroclip_token_transactions";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -79,7 +79,7 @@ export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -96,7 +96,7 @@ export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         delta: import("drizzle-orm/pg-core").PgColumn<{
             name: "delta";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -113,7 +113,7 @@ export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         reason: import("drizzle-orm/pg-core").PgColumn<{
             name: "reason";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -130,7 +130,7 @@ export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         refId: import("drizzle-orm/pg-core").PgColumn<{
             name: "ref_id";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -147,7 +147,7 @@ export declare const tokenTransactionsTable: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "token_transactions";
+            tableName: "Neyroclip_token_transactions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

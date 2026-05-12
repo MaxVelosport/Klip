@@ -1,10 +1,10 @@
 export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "projects";
+    name: "Neyroclip_projects";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         title: import("drizzle-orm/pg-core").PgColumn<{
             name: "title";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         topicDescription: import("drizzle-orm/pg-core").PgColumn<{
             name: "topic_description";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         category: import("drizzle-orm/pg-core").PgColumn<{
             name: "category";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         targetDurationSec: import("drizzle-orm/pg-core").PgColumn<{
             name: "target_duration_sec";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -106,7 +106,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         durationSec: import("drizzle-orm/pg-core").PgColumn<{
             name: "duration_sec";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -123,7 +123,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         visualStyle: import("drizzle-orm/pg-core").PgColumn<{
             name: "visual_style";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -140,7 +140,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         voiceId: import("drizzle-orm/pg-core").PgColumn<{
             name: "voice_id";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -157,7 +157,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         voiceSpeed: import("drizzle-orm/pg-core").PgColumn<{
             name: "voice_speed";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgNumeric";
             data: string;
@@ -174,7 +174,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         backgroundMusicId: import("drizzle-orm/pg-core").PgColumn<{
             name: "background_music_id";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -191,7 +191,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         musicVolume: import("drizzle-orm/pg-core").PgColumn<{
             name: "music_volume";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -208,7 +208,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         addSubtitles: import("drizzle-orm/pg-core").PgColumn<{
             name: "add_subtitles";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -225,7 +225,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -242,7 +242,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         currentStep: import("drizzle-orm/pg-core").PgColumn<{
             name: "current_step";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "number";
             columnType: "PgSmallInt";
             data: number;
@@ -259,7 +259,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         aspectRatio: import("drizzle-orm/pg-core").PgColumn<{
             name: "aspect_ratio";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -276,7 +276,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         shareToken: import("drizzle-orm/pg-core").PgColumn<{
             name: "share_token";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -293,7 +293,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         parentProjectId: import("drizzle-orm/pg-core").PgColumn<{
             name: "parent_project_id";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -310,7 +310,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         finalVideoUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "final_video_url";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -327,7 +327,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         thumbnailUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "thumbnail_url";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -344,7 +344,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         errorMessage: import("drizzle-orm/pg-core").PgColumn<{
             name: "error_message";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -361,7 +361,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -378,7 +378,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -395,7 +395,7 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         deletedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "deleted_at";
-            tableName: "projects";
+            tableName: "Neyroclip_projects";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

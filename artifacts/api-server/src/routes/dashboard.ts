@@ -1,99 +1,95 @@
 import { Router, type IRouter } from "express";
-import {
-  db,
-  projectsTable,
-  auditLogTable,
-  usersTable,
-  plansTable,
-  tokenBalancesTable,
-} from "@workspace/db";
-import { and, eq, isNull, desc, sql, gte } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
 
 router.get("/dashboard/summary", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.userId, userId), isNull(projectsTable.deletedAt)));
-  const breakdownRows = await db
-    .select({ status: projectsTable.status, count: sql<number>`count(*)::int` })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.userId, userId), isNull(projectsTable.deletedAt)))
-    .groupBy(projectsTable.status);
-  const breakdown = new Map(breakdownRows.map((r) => [r.status, Number(r.count)]));
-  const [durationRow] = await db
-    .select({ total: sql<number>`coalesce(sum(${projectsTable.durationSec}),0)::int` })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.userId, userId), isNull(projectsTable.deletedAt)));
-  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [monthRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(projectsTable)
-    .where(
-      and(
-        eq(projectsTable.userId, userId),
-        isNull(projectsTable.deletedAt),
-        eq(projectsTable.status, "done"),
-        gte(projectsTable.updatedAt, monthAgo),
-      ),
-    );
-  const recent = await db
-    .select()
-    .from(projectsTable)
-    .where(and(eq(projectsTable.userId, userId), isNull(projectsTable.deletedAt)))
-    .orderBy(desc(projectsTable.updatedAt))
-    .limit(4);
-  const activity = await db
-    .select()
-    .from(auditLogTable)
-    .where(eq(auditLogTable.userId, userId))
-    .orderBy(desc(auditLogTable.createdAt))
-    .limit(10);
-  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, u!.planId)).limit(1);
-  const [bal] = await db
-    .select()
-    .from(tokenBalancesTable)
-    .where(eq(tokenBalancesTable.userId, userId))
-    .limit(1);
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [statsRes, recentRes, activityRes, userRes] = await Promise.all([
+    sbFrom(TABLE.projects)
+      .select("status, duration_sec, updated_at")
+      .eq("user_id", userId)
+      .is("deleted_at", null),
+    sbFrom(TABLE.projects)
+      .select("*")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(4),
+    sbFrom(TABLE.auditLog)
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    sbFrom(TABLE.users).select("*").eq("id", userId).maybeSingle(),
+  ]);
+
+  if (statsRes.error) throw new Error(statsRes.error.message);
+  if (recentRes.error) throw new Error(recentRes.error.message);
+  if (activityRes.error) throw new Error(activityRes.error.message);
+  if (userRes.error) throw new Error(userRes.error.message);
+
+  const u = userRes.data;
+  if (!u) { res.status(401).json({ error: "Сессия недействительна" }); return; }
+
+  const [planRes, balRes] = await Promise.all([
+    sbFrom(TABLE.plans).select("*").eq("id", u.plan_id).maybeSingle(),
+    sbFrom(TABLE.tokenBalances).select("*").eq("user_id", userId).maybeSingle(),
+  ]);
+  const plan = planRes.data;
+  const bal = balRes.data;
+
+  const statsRows = statsRes.data ?? [];
+  const breakdown = new Map<string, number>();
+  let totalDurationSec = 0;
+  let videosThisMonth = 0;
+  for (const p of statsRows) {
+    breakdown.set(p.status, (breakdown.get(p.status) ?? 0) + 1);
+    totalDurationSec += p.duration_sec ?? 0;
+    if (p.status === "done" && p.updated_at >= monthAgo) videosThisMonth++;
+  }
 
   const inProgress =
     (breakdown.get("draft") ?? 0) +
     (breakdown.get("script_ready") ?? 0) +
     (breakdown.get("images_ready") ?? 0) +
     (breakdown.get("audio_ready") ?? 0);
+
+  const recent = recentRes.data ?? [];
+  const activity = activityRes.data ?? [];
+
   res.json({
-    totalProjects: Number(total),
+    totalProjects: statsRows.length,
     completedProjects: breakdown.get("done") ?? 0,
     renderingProjects: breakdown.get("rendering") ?? 0,
     draftProjects: inProgress,
-    totalDurationSec: Number(durationRow?.total ?? 0),
-    videosThisMonth: Number(monthRow?.count ?? 0),
+    totalDurationSec,
+    videosThisMonth,
     tokenBalance: bal?.balance ?? 0,
-    videosRemaining: Math.max(0, (plan?.videosPerMonth ?? 0) - (u?.videosUsedThisPeriod ?? 0)),
+    videosRemaining: Math.max(0, (plan?.videos_per_month ?? 0) - (u.videos_used_this_period ?? 0)),
     statusBreakdown: Array.from(breakdown.entries()).map(([status, count]) => ({ status, count })),
     recentProjects: recent.map((p) => ({
       id: p.id,
       title: p.title,
       status: p.status,
-      currentStep: p.currentStep,
-      durationSec: p.durationSec,
-      thumbnailUrl: p.thumbnailUrl,
-      finalVideoUrl: p.finalVideoUrl,
+      currentStep: p.current_step,
+      durationSec: p.duration_sec,
+      thumbnailUrl: p.thumbnail_url,
+      finalVideoUrl: p.final_video_url,
       sceneCount: 0,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
     })),
     recentActivity: activity.map((a) => ({
       id: String(a.id),
       action: a.action,
-      entityType: a.entityType,
-      entityId: a.entityId,
+      entityType: a.entity_type,
+      entityId: a.entity_id,
       message: a.message,
-      createdAt: a.createdAt.toISOString(),
+      createdAt: a.created_at,
     })),
   });
 });

@@ -1,10 +1,10 @@
 export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "script_messages";
+    name: "Neyroclip_script_messages";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         projectId: import("drizzle-orm/pg-core").PgColumn<{
             name: "project_id";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -55,7 +55,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         role: import("drizzle-orm/pg-core").PgColumn<{
             name: "role";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         content: import("drizzle-orm/pg-core").PgColumn<{
             name: "content";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         diffSummary: import("drizzle-orm/pg-core").PgColumn<{
             name: "diff_summary";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const scriptMessagesTable: import("drizzle-orm/pg-core").PgTableW
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "script_messages";
+            tableName: "Neyroclip_script_messages";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

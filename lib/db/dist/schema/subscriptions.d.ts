@@ -1,10 +1,10 @@
 export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "subscriptions";
+    name: "Neyroclip_subscriptions";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         planId: import("drizzle-orm/pg-core").PgColumn<{
             name: "plan_id";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         currentPeriodStart: import("drizzle-orm/pg-core").PgColumn<{
             name: "current_period_start";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -89,7 +89,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         currentPeriodEnd: import("drizzle-orm/pg-core").PgColumn<{
             name: "current_period_end";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -106,7 +106,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         cancelAtPeriodEnd: import("drizzle-orm/pg-core").PgColumn<{
             name: "cancel_at_period_end";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -123,7 +123,7 @@ export declare const subscriptionsTable: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "subscriptions";
+            tableName: "Neyroclip_subscriptions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

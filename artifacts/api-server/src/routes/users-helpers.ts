@@ -1,29 +1,31 @@
-import { db, usersTable, plansTable, tokenBalancesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 
 export async function buildCurrentUser(userId: string) {
-  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const { data: u, error: uErr } = await sbFrom(TABLE.users).select("*").eq("id", userId).maybeSingle();
+  if (uErr) throw new Error(uErr.message);
   if (!u) return null;
-  const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, u.planId)).limit(1);
-  const [bal] = await db
-    .select()
-    .from(tokenBalancesTable)
-    .where(eq(tokenBalancesTable.userId, u.id))
-    .limit(1);
+
+  const [planRes, balRes] = await Promise.all([
+    sbFrom(TABLE.plans).select("*").eq("id", u.plan_id).maybeSingle(),
+    sbFrom(TABLE.tokenBalances).select("*").eq("user_id", u.id).maybeSingle(),
+  ]);
+  const plan = planRes.data;
+  const bal = balRes.data;
+
   return {
     id: u.id,
     email: u.email,
     name: u.name,
-    avatarUrl: u.avatarUrl ?? null,
+    avatarUrl: u.avatar_url ?? null,
     phone: u.phone ?? null,
     role: u.role,
-    planId: u.planId,
-    planName: plan?.name ?? u.planId,
+    planId: u.plan_id,
+    planName: plan?.name ?? u.plan_id,
     tokenBalance: bal?.balance ?? 0,
-    videosUsedThisPeriod: u.videosUsedThisPeriod,
-    videosQuota: plan?.videosPerMonth ?? 0,
-    currentPeriodEnd: u.currentPeriodEnd ? u.currentPeriodEnd.toISOString() : null,
+    videosUsedThisPeriod: u.videos_used_this_period,
+    videosQuota: plan?.videos_per_month ?? 0,
+    currentPeriodEnd: u.current_period_end ?? null,
     cancelAtPeriodEnd: false,
-    createdAt: u.createdAt.toISOString(),
+    createdAt: u.created_at,
   };
 }

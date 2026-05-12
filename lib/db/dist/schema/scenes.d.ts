@@ -1,10 +1,10 @@
 export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "scenes";
+    name: "Neyroclip_scenes";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         projectId: import("drizzle-orm/pg-core").PgColumn<{
             name: "project_id";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         orderIndex: import("drizzle-orm/pg-core").PgColumn<{
             name: "order_index";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "number";
             columnType: "PgSmallInt";
             data: number;
@@ -55,7 +55,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         title: import("drizzle-orm/pg-core").PgColumn<{
             name: "title";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         narration: import("drizzle-orm/pg-core").PgColumn<{
             name: "narration";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         imagePrompt: import("drizzle-orm/pg-core").PgColumn<{
             name: "image_prompt";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         imageUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "image_url";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -123,7 +123,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         audioUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "audio_url";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -140,7 +140,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         durationSec: import("drizzle-orm/pg-core").PgColumn<{
             name: "duration_sec";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgNumeric";
             data: string;
@@ -157,7 +157,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         animationType: import("drizzle-orm/pg-core").PgColumn<{
             name: "animation_type";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -174,7 +174,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         transitionType: import("drizzle-orm/pg-core").PgColumn<{
             name: "transition_type";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -191,7 +191,7 @@ export declare const scenesTable: import("drizzle-orm/pg-core").PgTableWithColum
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "scenes";
+            tableName: "Neyroclip_scenes";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

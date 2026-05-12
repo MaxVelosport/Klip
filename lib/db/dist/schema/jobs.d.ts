@@ -1,10 +1,10 @@
 export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "render_jobs";
+    name: "Neyroclip_render_jobs";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         projectId: import("drizzle-orm/pg-core").PgColumn<{
             name: "project_id";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         jobType: import("drizzle-orm/pg-core").PgColumn<{
             name: "job_type";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         progress: import("drizzle-orm/pg-core").PgColumn<{
             name: "progress";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "number";
             columnType: "PgSmallInt";
             data: number;
@@ -89,7 +89,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         startedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "started_at";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -106,7 +106,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         finishedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "finished_at";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -123,7 +123,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         errorMessage: import("drizzle-orm/pg-core").PgColumn<{
             name: "error_message";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -140,7 +140,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         retryCount: import("drizzle-orm/pg-core").PgColumn<{
             name: "retry_count";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "number";
             columnType: "PgSmallInt";
             data: number;
@@ -157,7 +157,7 @@ export declare const renderJobsTable: import("drizzle-orm/pg-core").PgTableWithC
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "render_jobs";
+            tableName: "Neyroclip_render_jobs";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

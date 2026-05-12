@@ -1,10 +1,10 @@
 export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "users";
+    name: "Neyroclip_users";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         email: import("drizzle-orm/pg-core").PgColumn<{
             name: "email";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -38,7 +38,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         passwordHash: import("drizzle-orm/pg-core").PgColumn<{
             name: "password_hash";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         oauthProvider: import("drizzle-orm/pg-core").PgColumn<{
             name: "oauth_provider";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         oauthId: import("drizzle-orm/pg-core").PgColumn<{
             name: "oauth_id";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         name: import("drizzle-orm/pg-core").PgColumn<{
             name: "name";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         avatarUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "avatar_url";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -123,7 +123,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         phone: import("drizzle-orm/pg-core").PgColumn<{
             name: "phone";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -140,7 +140,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         role: import("drizzle-orm/pg-core").PgColumn<{
             name: "role";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -157,7 +157,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         planId: import("drizzle-orm/pg-core").PgColumn<{
             name: "plan_id";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -174,7 +174,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         videosUsedThisPeriod: import("drizzle-orm/pg-core").PgColumn<{
             name: "videos_used_this_period";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -191,7 +191,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         currentPeriodEnd: import("drizzle-orm/pg-core").PgColumn<{
             name: "current_period_end";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -208,7 +208,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -225,7 +225,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -242,7 +242,7 @@ export declare const usersTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         deletedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "deleted_at";
-            tableName: "users";
+            tableName: "Neyroclip_users";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
-import { db, plansTable } from "@workspace/db";
-import { asc } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 
 const router: IRouter = Router();
 
 router.get("/plans", async (_req, res) => {
-  const plans = await db.select().from(plansTable).orderBy(asc(plansTable.priceMonthRub));
-  res.json(plans);
+  const { data, error } = await sbFrom(TABLE.plans)
+    .select("*")
+    .order("price_month_rub", { ascending: true });
+  if (error) throw new Error(error.message);
+  res.json(data ?? []);
 });
 
 export default router;

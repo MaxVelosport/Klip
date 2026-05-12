@@ -1,10 +1,10 @@
 export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "plans";
+    name: "Neyroclip_plans";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -21,7 +21,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         name: import("drizzle-orm/pg-core").PgColumn<{
             name: "name";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -38,7 +38,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         tagline: import("drizzle-orm/pg-core").PgColumn<{
             name: "tagline";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         priceMonthRub: import("drizzle-orm/pg-core").PgColumn<{
             name: "price_month_rub";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -72,7 +72,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         priceYearRub: import("drizzle-orm/pg-core").PgColumn<{
             name: "price_year_rub";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -89,7 +89,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         videosPerMonth: import("drizzle-orm/pg-core").PgColumn<{
             name: "videos_per_month";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -106,7 +106,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         maxDurationMin: import("drizzle-orm/pg-core").PgColumn<{
             name: "max_duration_min";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -123,7 +123,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         features: import("drizzle-orm/pg-core").PgColumn<{
             name: "features";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "json";
             columnType: "PgJsonb";
             data: string[];
@@ -142,7 +142,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }>;
         watermark: import("drizzle-orm/pg-core").PgColumn<{
             name: "watermark";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -159,7 +159,7 @@ export declare const plansTable: import("drizzle-orm/pg-core").PgTableWithColumn
         }, {}, {}>;
         recommended: import("drizzle-orm/pg-core").PgColumn<{
             name: "recommended";
-            tableName: "plans";
+            tableName: "Neyroclip_plans";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;

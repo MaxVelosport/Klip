@@ -1,10 +1,10 @@
 export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "audit_log";
+    name: "Neyroclip_audit_log";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "number";
             columnType: "PgBigSerial53";
             data: number;
@@ -21,7 +21,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         action: import("drizzle-orm/pg-core").PgColumn<{
             name: "action";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         entityType: import("drizzle-orm/pg-core").PgColumn<{
             name: "entity_type";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         entityId: import("drizzle-orm/pg-core").PgColumn<{
             name: "entity_id";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         message: import("drizzle-orm/pg-core").PgColumn<{
             name: "message";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         metadata: import("drizzle-orm/pg-core").PgColumn<{
             name: "metadata";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "json";
             columnType: "PgJsonb";
             data: Record<string, unknown>;
@@ -125,7 +125,7 @@ export declare const auditLogTable: import("drizzle-orm/pg-core").PgTableWithCol
         }>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "audit_log";
+            tableName: "Neyroclip_audit_log";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

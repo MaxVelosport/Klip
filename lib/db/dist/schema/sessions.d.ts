@@ -1,10 +1,10 @@
 export declare const sessionsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "sessions";
+    name: "Neyroclip_sessions";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "sessions";
+            tableName: "Neyroclip_sessions";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -21,7 +21,7 @@ export declare const sessionsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "sessions";
+            tableName: "Neyroclip_sessions";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const sessionsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         expiresAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "expires_at";
-            tableName: "sessions";
+            tableName: "Neyroclip_sessions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -55,7 +55,7 @@ export declare const sessionsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "sessions";
+            tableName: "Neyroclip_sessions";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

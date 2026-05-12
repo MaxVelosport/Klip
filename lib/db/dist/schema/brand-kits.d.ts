@@ -1,10 +1,10 @@
 export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "brand_kits";
+    name: "Neyroclip_brand_kits";
     schema: undefined;
     columns: {
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         brandName: import("drizzle-orm/pg-core").PgColumn<{
             name: "brand_name";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -38,7 +38,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         logoUrl: import("drizzle-orm/pg-core").PgColumn<{
             name: "logo_url";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         primaryColor: import("drizzle-orm/pg-core").PgColumn<{
             name: "primary_color";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +72,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         accentColor: import("drizzle-orm/pg-core").PgColumn<{
             name: "accent_color";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         fontChoice: import("drizzle-orm/pg-core").PgColumn<{
             name: "font_choice";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         watermarkText: import("drizzle-orm/pg-core").PgColumn<{
             name: "watermark_text";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -123,7 +123,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         tagline: import("drizzle-orm/pg-core").PgColumn<{
             name: "tagline";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -140,7 +140,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -157,7 +157,7 @@ export declare const brandKitsTable: import("drizzle-orm/pg-core").PgTableWithCo
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "brand_kits";
+            tableName: "Neyroclip_brand_kits";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

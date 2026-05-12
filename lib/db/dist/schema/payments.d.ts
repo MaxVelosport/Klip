@@ -1,10 +1,10 @@
 export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "payments";
+    name: "Neyroclip_payments";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         userId: import("drizzle-orm/pg-core").PgColumn<{
             name: "user_id";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         yookassaPaymentId: import("drizzle-orm/pg-core").PgColumn<{
             name: "yookassa_payment_id";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -55,7 +55,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         amountRub: import("drizzle-orm/pg-core").PgColumn<{
             name: "amount_rub";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgNumeric";
             data: string;
@@ -72,7 +72,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -89,7 +89,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         purpose: import("drizzle-orm/pg-core").PgColumn<{
             name: "purpose";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -106,7 +106,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         description: import("drizzle-orm/pg-core").PgColumn<{
             name: "description";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -123,7 +123,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         metadata: import("drizzle-orm/pg-core").PgColumn<{
             name: "metadata";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "json";
             columnType: "PgJsonb";
             data: Record<string, unknown>;
@@ -142,7 +142,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -159,7 +159,7 @@ export declare const paymentsTable: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         succeededAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "succeeded_at";
-            tableName: "payments";
+            tableName: "Neyroclip_payments";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

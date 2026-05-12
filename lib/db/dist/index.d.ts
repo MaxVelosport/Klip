@@ -4,4 +4,5 @@ export declare const db: import("drizzle-orm/node-postgres").NodePgDatabase<type
     $client: import("pg").Pool;
 };
 export * from "./schema";
+export * from "./sb-client";
 //# sourceMappingURL=index.d.ts.map
