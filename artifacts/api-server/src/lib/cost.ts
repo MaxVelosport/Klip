@@ -1,4 +1,4 @@
-import type { projectsTable, scenesTable } from "@workspace/db";
+import type { Project, Scene } from "@workspace/db";
 
 export type RenderQuality = "sd" | "hd" | "uhd";
 
@@ -44,8 +44,8 @@ export function parseQuality(input: unknown): RenderQuality {
  * quality multiplier, watermark removal — then a fixed markup on top.
  */
 export function computeProjectCost(
-  project: any,
-  scenes: Array<any>,
+  project: Project,
+  scenes: Scene[],
   options: CostOptions,
 ): CostBreakdown {
   const lines: CostLine[] = [];
@@ -59,7 +59,7 @@ export function computeProjectCost(
   });
 
   const totalChars = scenes.reduce(
-    (acc, s) => acc + (s.narration?.length ?? 0),
+    (acc, s) => acc + (s.narration.length ?? 0),
     0,
   );
   const voiceCost = Math.max(2, Math.ceil(totalChars / 100));
@@ -79,7 +79,7 @@ export function computeProjectCost(
   if (project.background_music_id) {
     lines.push({
       label: "Фоновая музыка (лицензия)",
-      detail: project.background_music_id,
+      detail: project.background_music_id ?? "",
       tokens: 5,
     });
   }

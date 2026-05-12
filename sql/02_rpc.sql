@@ -105,10 +105,23 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_new_balance INT;
+  v_new_balance       INT;
+  v_already_refunded  INT;
 BEGIN
   IF p_amount <= 0 THEN
     RAISE EXCEPTION 'INVALID_AMOUNT' USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Idempotency: refuse double-refund for same (user, ref_id, reason)
+  SELECT COUNT(*) INTO v_already_refunded
+  FROM "Neyroclip_token_transactions"
+  WHERE user_id = p_user_id
+    AND ref_id  = p_ref_id
+    AND reason  = p_reason
+    AND delta   > 0;
+
+  IF v_already_refunded > 0 THEN
+    RAISE EXCEPTION 'ALREADY_REFUNDED' USING ERRCODE = 'P0001';
   END IF;
 
   UPDATE "Neyroclip_token_balances"
@@ -257,6 +270,78 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION neyroclip_add_tokens(UUID, INT, TEXT, TEXT)
+  TO anon, authenticated, service_role;
+
+
+CREATE OR REPLACE FUNCTION neyroclip_use_promo_code(
+  p_code    TEXT,
+  p_user_id UUID
+) RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_promo RECORD;
+  v_now   TIMESTAMPTZ := NOW();
+BEGIN
+  -- Atomically lock the promo row so concurrent calls can't race
+  SELECT * INTO v_promo
+  FROM "Neyroclip_promo_codes"
+  WHERE code = p_code AND is_active = true
+  FOR UPDATE;
+
+  IF v_promo IS NULL THEN
+    RAISE EXCEPTION 'PROMO_NOT_FOUND' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_promo.valid_from IS NOT NULL AND v_now < v_promo.valid_from THEN
+    RAISE EXCEPTION 'PROMO_NOT_STARTED' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_promo.valid_until IS NOT NULL AND v_now > v_promo.valid_until THEN
+    RAISE EXCEPTION 'PROMO_EXPIRED' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_promo.max_uses > 0 AND v_promo.used_count >= v_promo.max_uses THEN
+    RAISE EXCEPTION 'PROMO_LIMIT_REACHED' USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Per-user idempotency: one use per user per code
+  IF EXISTS (
+    SELECT 1 FROM "Neyroclip_token_transactions"
+    WHERE user_id = p_user_id
+      AND reason  = 'promo'
+      AND ref_id  = p_code
+  ) THEN
+    RAISE EXCEPTION 'PROMO_ALREADY_USED' USING ERRCODE = 'P0001';
+  END IF;
+
+  UPDATE "Neyroclip_promo_codes"
+  SET used_count = used_count + 1
+  WHERE code = p_code;
+
+  IF v_promo.discount_type = 'tokens' AND v_promo.discount_value > 0 THEN
+    INSERT INTO "Neyroclip_token_balances" (user_id, balance)
+    VALUES (p_user_id, v_promo.discount_value)
+    ON CONFLICT (user_id) DO UPDATE
+      SET balance    = "Neyroclip_token_balances".balance + v_promo.discount_value,
+          updated_at = NOW();
+
+    INSERT INTO "Neyroclip_token_transactions" (user_id, delta, reason, ref_id)
+    VALUES (p_user_id, v_promo.discount_value, 'promo', p_code);
+  END IF;
+
+  RETURN json_build_object(
+    'code',           p_code,
+    'discount_type',  v_promo.discount_type,
+    'discount_value', v_promo.discount_value,
+    'used_count',     v_promo.used_count + 1
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION neyroclip_use_promo_code(TEXT, UUID)
   TO anon, authenticated, service_role;
 
 

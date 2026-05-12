@@ -32,5 +32,5 @@ export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
   },
 });
 
-export * from "./schema";
 export * from "./sb-client";
+export * from "./types";

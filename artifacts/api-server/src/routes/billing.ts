@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, sbRpc, TABLE } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, type Plan, type Payment, type TokenTransaction } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { TOKEN_PACK_TOKENS, TOKEN_PACK_PRICE } from "../lib/presets";
 
@@ -23,11 +23,12 @@ router.post("/billing/subscribe", requireAuth, async (req: AuthedRequest, res) =
   }
   const { data: plan, error: planErr } = await sbFrom(TABLE.plans).select("*").eq("id", planId).maybeSingle();
   if (planErr) throw new Error(planErr.message);
-  if (!plan) {
+  const p = plan as Plan | null;
+  if (!p) {
     res.status(400).json({ error: "Тариф не найден" });
     return;
   }
-  const amount = period === "year" ? (plan as any).price_year_rub : (plan as any).price_month_rub;
+  const amount = period === "year" ? p.price_year_rub : p.price_month_rub;
   const periodMs = (period === "year" ? 365 : 30) * 24 * 60 * 60 * 1000;
   const periodEnd = new Date(Date.now() + periodMs).toISOString();
 
@@ -36,10 +37,11 @@ router.post("/billing/subscribe", requireAuth, async (req: AuthedRequest, res) =
     amount_rub: String(amount),
     status: "succeeded",
     purpose: "subscription",
-    description: `Подписка ${(plan as any).name} (${period === "year" ? "год" : "месяц"})`,
+    description: `Подписка ${p.name} (${period === "year" ? "год" : "месяц"})`,
     succeeded_at: new Date().toISOString(),
   }).select().single();
   if (payErr) throw new Error(payErr.message);
+  const pay = payment as Payment;
 
   const { error: updErr } = await sbFrom(TABLE.users).update({
     plan_id: planId,
@@ -52,10 +54,10 @@ router.post("/billing/subscribe", requireAuth, async (req: AuthedRequest, res) =
     user_id: req.userId!,
     action: "subscribe",
     entity_type: "subscription",
-    message: `Оформлена подписка ${(plan as any).name}`,
+    message: `Оформлена подписка ${p.name}`,
   });
   res.json({
-    paymentId: (payment as any).id,
+    paymentId: pay.id,
     confirmationUrl: "",
     amountRub: amount,
     status: "succeeded",
@@ -79,8 +81,9 @@ router.post("/billing/tokens/purchase", requireAuth, async (req: AuthedRequest, 
     succeeded_at: new Date().toISOString(),
   }).select().single();
   if (payErr) throw new Error(payErr.message);
+  const pay = payment as Payment;
 
-  await addTokens(req.userId!, tokens, "purchase", (payment as any).id);
+  await addTokens(req.userId!, tokens, "purchase", pay.id);
   await sbFrom(TABLE.auditLog).insert({
     user_id: req.userId!,
     action: "tokens_purchased",
@@ -88,7 +91,7 @@ router.post("/billing/tokens/purchase", requireAuth, async (req: AuthedRequest, 
     message: `Куплено ${tokens} жетонов`,
   });
   res.json({
-    paymentId: (payment as any).id,
+    paymentId: pay.id,
     confirmationUrl: "",
     amountRub: price,
     status: "succeeded",
@@ -122,7 +125,7 @@ router.get("/billing/token-transactions", requireAuth, async (req: AuthedRequest
     plan_bonus: "Бонус по тарифу",
   };
   res.json(
-    (rows ?? []).map((t: any) => ({
+    ((rows ?? []) as TokenTransaction[]).map((t) => ({
       id: t.id,
       delta: t.delta,
       reason: t.reason,
@@ -141,7 +144,7 @@ router.get("/billing/payments", requireAuth, async (req: AuthedRequest, res) => 
     .limit(100);
   if (error) throw new Error(error.message);
   res.json(
-    (rows ?? []).map((p: any) => ({
+    ((rows ?? []) as Payment[]).map((p) => ({
       id: p.id,
       amountRub: Number(p.amount_rub),
       status: p.status,
@@ -152,6 +155,14 @@ router.get("/billing/payments", requireAuth, async (req: AuthedRequest, res) => 
   );
 });
 
+const PROMO_ERRORS: Record<string, string> = {
+  PROMO_NOT_FOUND: "Промокод не найден или неактивен",
+  PROMO_NOT_STARTED: "Промокод ещё не действует",
+  PROMO_EXPIRED: "Срок действия промокода истёк",
+  PROMO_LIMIT_REACHED: "Промокод исчерпан",
+  PROMO_ALREADY_USED: "Вы уже использовали этот промокод",
+};
+
 router.post("/billing/promo", requireAuth, async (req: AuthedRequest, res) => {
   const { code } = req.body ?? {};
   if (!code) {
@@ -159,27 +170,38 @@ router.post("/billing/promo", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
   const normalized = String(code).trim().toUpperCase();
-  const { data: promo, error: promoErr } = await sbFrom(TABLE.promoCodes)
-    .select("*")
-    .eq("code", normalized)
-    .maybeSingle();
-  if (promoErr) throw new Error(promoErr.message);
-  if (!promo || !(promo as any).is_active) {
-    res.status(400).json({ error: "Промокод не найден или неактивен" });
-    return;
+
+  const { data, error } = await sbRpc<{
+    code: string;
+    discount_type: string;
+    discount_value: number;
+    used_count: number;
+  }>("neyroclip_use_promo_code", {
+    p_code: normalized,
+    p_user_id: req.userId!,
+  });
+
+  if (error) {
+    for (const [key, msg] of Object.entries(PROMO_ERRORS)) {
+      if (error.message?.includes(key)) {
+        res.status(400).json({ error: msg });
+        return;
+      }
+    }
+    throw new Error(error.message);
   }
-  if ((promo as any).max_uses > 0 && (promo as any).used_count >= (promo as any).max_uses) {
-    res.status(400).json({ error: "Промокод исчерпан" });
-    return;
-  }
-  const tokensAdded = (promo as any).discount_type === "tokens" ? (promo as any).discount_value : 0;
-  if (tokensAdded > 0) {
-    await addTokens(req.userId!, tokensAdded, "promo", normalized);
-  }
-  // non-atomic increment — acceptable race condition (post-pitch: neyroclip_increment_promo RPC)
-  await sbFrom(TABLE.promoCodes)
-    .update({ used_count: (promo as any).used_count + 1 })
-    .eq("code", normalized);
+
+  const result = data!;
+  const tokensAdded = result.discount_type === "tokens" ? result.discount_value : 0;
+
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
+    action: "promo_used",
+    entity_type: "promo",
+    entity_id: normalized,
+    message: tokensAdded > 0 ? `Промокод ${normalized}: +${tokensAdded} жетонов` : `Промокод ${normalized} применён`,
+  });
+
   res.json({
     ok: true,
     message: tokensAdded > 0 ? `Начислено ${tokensAdded} жетонов` : "Промокод применён",

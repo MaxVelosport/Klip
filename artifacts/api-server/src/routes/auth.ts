@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { sbFrom, sbRpc, TABLE } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, type User } from "@workspace/db";
 import { createSession, destroySession, type AuthedRequest } from "../lib/session";
 import { buildCurrentUser } from "./users-helpers";
 
@@ -23,11 +23,14 @@ router.post("/auth/register", async (req: AuthedRequest, res) => {
   const normalizedEmail = String(email).trim().toLowerCase();
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const { data, error } = await sbRpc("neyroclip_register_user", {
-    p_email: normalizedEmail,
-    p_name: String(name).trim(),
-    p_password_hash: passwordHash,
-  });
+  const { data, error } = await sbRpc<{ id: string; email: string; name: string; role: string; plan_id: string }>(
+    "neyroclip_register_user",
+    {
+      p_email: normalizedEmail,
+      p_name: String(name).trim(),
+      p_password_hash: passwordHash,
+    },
+  );
   if (error) {
     if (error.message?.includes("EMAIL_TAKEN")) {
       res.status(400).json({ error: "Пользователь с такой почтой уже зарегистрирован" });
@@ -35,7 +38,7 @@ router.post("/auth/register", async (req: AuthedRequest, res) => {
     }
     throw new Error(error.message);
   }
-  const created = data as { id: string };
+  const created = data!;
   await createSession(res, created.id);
   const user = await buildCurrentUser(created.id);
   res.json({ user });
@@ -53,17 +56,18 @@ router.post("/auth/login", async (req: AuthedRequest, res) => {
     .eq("email", normalizedEmail)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!u || !(u as any).password_hash) {
+  const found = u as User | null;
+  if (!found?.password_hash) {
     res.status(401).json({ error: "Неверная почта или пароль" });
     return;
   }
-  const ok = await bcrypt.compare(String(password), (u as any).password_hash);
+  const ok = await bcrypt.compare(String(password), found.password_hash);
   if (!ok) {
     res.status(401).json({ error: "Неверная почта или пароль" });
     return;
   }
-  await createSession(res, (u as any).id);
-  const user = await buildCurrentUser((u as any).id);
+  await createSession(res, found.id);
+  const user = await buildCurrentUser(found.id);
   res.json({ user });
 });
 
@@ -82,9 +86,9 @@ router.post("/auth/oauth/:provider", async (req: AuthedRequest, res) => {
   const email = `${provider}-demo@neuroclip.ru`;
 
   const { data: existing } = await sbFrom(TABLE.users).select("*").eq("email", email).maybeSingle();
-  let u = existing as any;
+  let oauthUser = existing as User | null;
 
-  if (!u) {
+  if (!oauthUser) {
     const { data: created, error } = await sbFrom(TABLE.users).insert({
       email,
       name: provider === "vk" ? "Гость VK" : "Гость Яндекс",
@@ -94,19 +98,19 @@ router.post("/auth/oauth/:provider", async (req: AuthedRequest, res) => {
       current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     }).select().single();
     if (error) throw new Error(error.message);
-    u = created;
+    oauthUser = created as User;
     await sbFrom(TABLE.tokenBalances).upsert(
-      { user_id: u.id, balance: 200 },
+      { user_id: oauthUser.id, balance: 200 },
       { onConflict: "user_id", ignoreDuplicates: true },
     );
   }
 
-  if (!u) {
+  if (!oauthUser) {
     res.status(500).json({ error: "Не удалось войти" });
     return;
   }
-  await createSession(res, u.id);
-  const user = await buildCurrentUser(u.id);
+  await createSession(res, oauthUser.id);
+  const user = await buildCurrentUser(oauthUser.id);
   res.json({ user });
 });
 

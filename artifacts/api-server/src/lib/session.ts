@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type Session, type User } from "@workspace/db";
 import type { Request, Response, NextFunction } from "express";
 
 const COOKIE = "neuroclip.sid";
@@ -42,14 +42,16 @@ export async function loadUser(req: AuthedRequest, _res: Response, next: NextFun
   if (!sid) return next();
   try {
     const { data: session } = await sbFrom(TABLE.sessions).select("*").eq("id", sid).maybeSingle();
-    if (!session || new Date(session.expires_at) <= new Date()) return next();
+    const s = session as Session | null;
+    if (!s || new Date(s.expires_at) <= new Date()) return next();
     const { data: user } = await sbFrom(TABLE.users)
       .select("id, role")
-      .eq("id", session.user_id)
+      .eq("id", s.user_id)
       .maybeSingle();
-    if (user) {
-      req.userId = session.user_id;
-      req.userRole = (user as any).role;
+    const u = user as Pick<User, "id" | "role"> | null;
+    if (u) {
+      req.userId = s.user_id;
+      req.userRole = u.role;
     }
   } catch {
     /* ignore */

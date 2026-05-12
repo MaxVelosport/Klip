@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, sbRpc, TABLE } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, type Project, type Scene, type RenderJob } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
-import { serializeScene } from "./projects";
+import { serializeProject, serializeScene } from "./projects";
 import { generateScript, pickImage, SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
 import {
   computeProjectCost,
@@ -13,7 +13,7 @@ const router: IRouter = Router();
 
 async function getBalance(userId: string): Promise<number> {
   const { data } = await sbFrom(TABLE.tokenBalances).select("balance").eq("user_id", userId).maybeSingle();
-  return (data as any)?.balance ?? 0;
+  return (data as { balance: number } | null)?.balance ?? 0;
 }
 
 async function chargeTokens(
@@ -22,7 +22,7 @@ async function chargeTokens(
   projectId: string,
   reason: string,
 ): Promise<{ ok: true; balanceAfter: number } | { ok: false; balance: number }> {
-  const { data, error } = await sbRpc("neyroclip_spend_tokens", {
+  const { data, error } = await sbRpc<{ new_balance: number; spent: number }>("neyroclip_spend_tokens", {
     p_user_id: userId,
     p_amount: amount,
     p_ref_id: projectId,
@@ -35,7 +35,7 @@ async function chargeTokens(
     }
     throw new Error(error.message);
   }
-  return { ok: true as const, balanceAfter: (data as any).new_balance };
+  return { ok: true as const, balanceAfter: data!.new_balance };
 }
 
 async function refundTokens(userId: string, amount: number, jobId: string, note: string) {
@@ -45,10 +45,16 @@ async function refundTokens(userId: string, amount: number, jobId: string, note:
     p_ref_id: jobId,
     p_reason: "refund",
   });
-  if (error && !error.message?.includes("USER_NOT_FOUND")) {
-    // best-effort: log but don't throw inside setTimeout
-    console.error(`refundTokens error for job ${jobId}:`, error.message);
-    return;
+  if (error) {
+    if (error.message?.includes("ALREADY_REFUNDED")) {
+      // Normal on retry — already refunded, nothing to do
+      console.info(`refundTokens: job ${jobId} already refunded, skipping`);
+      return;
+    }
+    if (!error.message?.includes("USER_NOT_FOUND")) {
+      console.error(`refundTokens error for job ${jobId}:`, error.message);
+      return;
+    }
   }
   await sbFrom(TABLE.auditLog).insert({
     user_id: userId,
@@ -59,12 +65,12 @@ async function refundTokens(userId: string, amount: number, jobId: string, note:
   });
 }
 
-async function loadScenes(projectId: string) {
+async function loadScenes(projectId: string): Promise<Scene[]> {
   const { data } = await sbFrom(TABLE.scenes)
     .select("*")
     .eq("project_id", projectId)
     .order("order_index", { ascending: true });
-  return (data ?? []) as any[];
+  return (data ?? []) as Scene[];
 }
 
 function serializeCost(b: CostBreakdown) {
@@ -81,7 +87,7 @@ function serializeCost(b: CostBreakdown) {
   };
 }
 
-async function ownProject(req: AuthedRequest) {
+async function ownProject(req: AuthedRequest): Promise<Project | null> {
   const id = String(req.params.id);
   const { data: p } = await sbFrom(TABLE.projects)
     .select("*")
@@ -89,35 +95,13 @@ async function ownProject(req: AuthedRequest) {
     .eq("user_id", req.userId!)
     .is("deleted_at", null)
     .maybeSingle();
-  return (p as any) ?? null;
+  return (p as Project | null) ?? null;
 }
 
-async function returnProject(p: any, res: import("express").Response) {
+async function returnProject(p: Project, res: import("express").Response) {
   const { data: updated } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).single();
   const scenes = await loadScenes(p.id);
-  const u = updated as any;
-  res.json({
-    id: u.id,
-    title: u.title,
-    topicDescription: u.topic_description,
-    category: u.category,
-    targetDurationSec: u.target_duration_sec,
-    durationSec: u.duration_sec,
-    visualStyle: u.visual_style,
-    voiceId: u.voice_id,
-    voiceSpeed: Number(u.voice_speed),
-    backgroundMusicId: u.background_music_id,
-    musicVolume: u.music_volume,
-    addSubtitles: u.add_subtitles,
-    status: u.status,
-    currentStep: u.current_step,
-    finalVideoUrl: u.final_video_url,
-    thumbnailUrl: u.thumbnail_url,
-    errorMessage: u.error_message,
-    scenes: scenes.map(serializeScene),
-    createdAt: u.created_at,
-    updatedAt: u.updated_at,
-  });
+  res.json(serializeProject(updated as Project, scenes));
 }
 
 router.post("/projects/:id/generate-script", requireAuth, async (req: AuthedRequest, res) => {
@@ -226,7 +210,7 @@ router.post("/projects/:id/cost-estimate", requireAuth, async (req: AuthedReques
 async function startRenderJob(opts: {
   req: AuthedRequest;
   res: import("express").Response;
-  p: any;
+  p: Project;
   reason: "render" | "rerender";
   resetToAudioReady: boolean;
 }) {
@@ -266,6 +250,7 @@ async function startRenderJob(opts: {
     started_at: new Date().toISOString(),
   }).select().single();
   if (jobErr) throw new Error(jobErr.message);
+  const createdJob = job as RenderJob;
 
   await sbFrom(TABLE.projects).update({ status: "rendering", current_step: 6 }).eq("id", p.id);
   await sbFrom(TABLE.auditLog).insert({
@@ -276,13 +261,14 @@ async function startRenderJob(opts: {
     message: `Списано ${breakdown.total} жетонов за «${p.title}» (${breakdown.qualityLabel})`,
   });
 
-  const jobId = (job as any).id;
+  const jobId = createdJob.id;
   const userId = req.userId!;
 
   setTimeout(async () => {
     try {
       const { data: latest } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).maybeSingle();
-      if (!latest || (latest as any).deleted_at) return;
+      const latestProject = latest as Project | null;
+      if (!latestProject || latestProject.deleted_at) return;
       await sbFrom(TABLE.renderJobs).update({
         status: "succeeded",
         progress: 100,
@@ -294,11 +280,11 @@ async function startRenderJob(opts: {
         current_step: 6,
       }).eq("id", p.id);
       await sbFrom(TABLE.auditLog).insert({
-        user_id: (latest as any).user_id,
+        user_id: latestProject.user_id,
         action: `${reason}_done`,
         entity_type: "project",
         entity_id: p.id,
-        message: `Видео «${(latest as any).title}» готово`,
+        message: `Видео «${latestProject.title}» готово`,
       });
     } catch (err) {
       try {
@@ -348,7 +334,7 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const j = job as any;
+  const j = job as RenderJob | null;
 
   let progress = 0;
   let stage = "Ожидание";

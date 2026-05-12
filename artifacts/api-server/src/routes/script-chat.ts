@@ -8,12 +8,12 @@ import {
   TextRun,
   AlignmentType,
 } from "docx";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type Project, type Scene, type ScriptMessage } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: Router = Router();
 
-async function ownProject(req: AuthedRequest) {
+async function ownProject(req: AuthedRequest): Promise<Project | null> {
   const id = String(req.params.id ?? "");
   if (!id) return null;
   const { data: p } = await sbFrom(TABLE.projects)
@@ -22,7 +22,7 @@ async function ownProject(req: AuthedRequest) {
     .eq("user_id", req.userId!)
     .is("deleted_at", null)
     .maybeSingle();
-  return p ?? null;
+  return (p as Project | null) ?? null;
 }
 
 router.get(
@@ -36,11 +36,11 @@ router.get(
     }
     const { data: rows, error } = await sbFrom(TABLE.scriptMessages)
       .select("*")
-      .eq("project_id", (p as any).id)
+      .eq("project_id", p.id)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     res.json({
-      messages: (rows ?? []).map((m: any) => ({
+      messages: ((rows ?? []) as ScriptMessage[]).map((m) => ({
         id: m.id,
         role: m.role,
         content: m.content,
@@ -190,7 +190,7 @@ router.post(
     const userMsg = parsed.data.message.trim();
 
     const { error: uInsErr } = await sbFrom(TABLE.scriptMessages).insert({
-      project_id: (p as any).id,
+      project_id: p.id,
       user_id: req.userId!,
       role: "user",
       content: userMsg,
@@ -199,22 +199,22 @@ router.post(
 
     const { data: scenes } = await sbFrom(TABLE.scenes)
       .select("*")
-      .eq("project_id", (p as any).id)
+      .eq("project_id", p.id)
       .order("order_index", { ascending: true });
 
     if (!scenes || scenes.length === 0) {
       const reply = "Сначала сгенерируйте сценарий — мне нечего править.";
       const { data: m, error } = await sbFrom(TABLE.scriptMessages)
-        .insert({ project_id: (p as any).id, user_id: req.userId!, role: "assistant", content: reply })
+        .insert({ project_id: p.id, user_id: req.userId!, role: "assistant", content: reply })
         .select()
         .single();
       if (error) throw new Error(error.message);
-      res.json({ assistant: serializeMsg(m!), changedSceneIds: [] });
+      res.json({ assistant: serializeMsg(m as ScriptMessage), changedSceneIds: [] });
       return;
     }
 
     const intent = detectIntent(userMsg);
-    const sceneInputs = scenes.map((s: any) => ({
+    const sceneInputs = (scenes as Scene[]).map((s) => ({
       id: s.id,
       orderIndex: s.order_index,
       title: s.title,
@@ -239,7 +239,7 @@ router.post(
 
     const { data: assistant, error: aInsErr } = await sbFrom(TABLE.scriptMessages)
       .insert({
-        project_id: (p as any).id,
+        project_id: p.id,
         user_id: req.userId!,
         role: "assistant",
         content: replyContent,
@@ -254,16 +254,16 @@ router.post(
         user_id: req.userId!,
         action: "script_refined",
         entity_type: "project",
-        entity_id: (p as any).id,
+        entity_id: p.id,
         message: `Сценарий доработан через чат (${updates.length} сцен)`,
       });
     }
 
-    res.json({ assistant: serializeMsg(assistant!), changedSceneIds });
+    res.json({ assistant: serializeMsg(assistant as ScriptMessage), changedSceneIds });
   },
 );
 
-function serializeMsg(m: any) {
+function serializeMsg(m: ScriptMessage) {
   return {
     id: m.id,
     role: m.role,
@@ -283,14 +283,14 @@ router.post(
       return;
     }
     const { error } = await sbFrom(TABLE.projects)
-      .update({ current_step: Math.max((p as any).current_step, 3) })
-      .eq("id", (p as any).id);
+      .update({ current_step: Math.max(p.current_step, 3) })
+      .eq("id", p.id);
     if (error) throw new Error(error.message);
     await sbFrom(TABLE.auditLog).insert({
       user_id: req.userId!,
       action: "script_approved",
       entity_type: "project",
-      entity_id: (p as any).id,
+      entity_id: p.id,
       message: `Сценарий согласован`,
     });
     res.json({ ok: true });
@@ -328,24 +328,24 @@ router.get(
     }
     const { data: scenes } = await sbFrom(TABLE.scenes)
       .select("*")
-      .eq("project_id", (p as any).id)
+      .eq("project_id", p.id)
       .order("order_index", { ascending: true });
 
-    const sceneList = scenes ?? [];
-    const base = safeFileName((p as any).title || "scenario");
+    const sceneList = (scenes ?? []) as Scene[];
+    const base = safeFileName(p.title || "scenario");
     const filename = `${base}.${fmt}`;
-    const totalSec = sceneList.reduce((acc: number, s: any) => acc + Number(s.duration_sec), 0);
+    const totalSec = sceneList.reduce((acc, s) => acc + Number(s.duration_sec), 0);
 
     if (fmt === "txt") {
       const lines: string[] = [];
-      lines.push((p as any).title);
-      lines.push("=".repeat(Math.max(3, (p as any).title.length)));
+      lines.push(p.title);
+      lines.push("=".repeat(Math.max(3, p.title.length)));
       lines.push("");
-      lines.push(`Тема: ${(p as any).topic_description}`);
+      lines.push(`Тема: ${p.topic_description}`);
       lines.push(`Длительность (план): ~${Math.round(totalSec)} сек`);
       lines.push(`Сцен: ${sceneList.length}`);
       lines.push("");
-      sceneList.forEach((s: any, i: number) => {
+      sceneList.forEach((s, i) => {
         lines.push(`Сцена ${i + 1}. ${s.title} (~${Number(s.duration_sec)} сек)`);
         lines.push("-".repeat(40));
         lines.push("Текст диктора:");
@@ -364,15 +364,15 @@ router.get(
 
     if (fmt === "md") {
       const lines: string[] = [];
-      lines.push(`# ${(p as any).title}`);
+      lines.push(`# ${p.title}`);
       lines.push("");
-      lines.push(`**Тема:** ${(p as any).topic_description}`);
+      lines.push(`**Тема:** ${p.topic_description}`);
       lines.push("");
       lines.push(`**Длительность (план):** ~${Math.round(totalSec)} сек`);
       lines.push("");
       lines.push(`**Сцен:** ${sceneList.length}`);
       lines.push("");
-      sceneList.forEach((s: any, i: number) => {
+      sceneList.forEach((s, i) => {
         lines.push(`## Сцена ${i + 1}. ${s.title}`);
         lines.push("");
         lines.push(`*~${Number(s.duration_sec)} сек*`);
@@ -398,20 +398,20 @@ router.get(
     // docx
     const doc = new Document({
       creator: "НейроКлип",
-      title: (p as any).title,
+      title: p.title,
       sections: [
         {
           properties: {},
           children: [
             new Paragraph({
-              text: (p as any).title,
+              text: p.title,
               heading: HeadingLevel.TITLE,
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
               children: [
                 new TextRun({ text: "Тема: ", bold: true }),
-                new TextRun((p as any).topic_description),
+                new TextRun(p.topic_description),
               ],
             }),
             new Paragraph({
@@ -427,7 +427,7 @@ router.get(
               ],
             }),
             new Paragraph({ text: "" }),
-            ...sceneList.flatMap((s: any, i: number) => [
+            ...sceneList.flatMap((s, i) => [
               new Paragraph({
                 text: `Сцена ${i + 1}. ${s.title}`,
                 heading: HeadingLevel.HEADING_1,

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type Project, type Scene } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
@@ -9,7 +9,7 @@ function generateShareToken(): string {
   return randomBytes(16).toString("hex");
 }
 
-function serializeProject(p: any, scenes: any[] = []) {
+export function serializeProject(p: Project, scenes: Scene[] = []) {
   return {
     id: p.id,
     title: p.title,
@@ -37,7 +37,7 @@ function serializeProject(p: any, scenes: any[] = []) {
   };
 }
 
-export function serializeScene(s: any) {
+export function serializeScene(s: Scene) {
   return {
     id: s.id,
     projectId: s.project_id,
@@ -69,18 +69,18 @@ router.get("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const { data: rows, error } = await query;
   if (error) throw new Error(error.message);
 
-  const projectList = rows ?? [];
+  const projectList = (rows ?? []) as Project[];
   const countMap = new Map<string, number>();
   if (projectList.length) {
-    const ids = projectList.map((r: any) => r.id);
+    const ids = projectList.map((r) => r.id);
     const { data: sceneCounts } = await sbFrom(TABLE.scenes).select("project_id").in("project_id", ids);
-    for (const s of sceneCounts ?? []) {
+    for (const s of (sceneCounts ?? []) as Array<{ project_id: string }>) {
       countMap.set(s.project_id, (countMap.get(s.project_id) ?? 0) + 1);
     }
   }
 
   res.json(
-    projectList.map((p: any) => ({
+    projectList.map((p) => ({
       id: p.id,
       title: p.title,
       status: p.status,
@@ -148,7 +148,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function loadProjectOr404(req: AuthedRequest, res: import("express").Response) {
+async function loadProjectOr404(req: AuthedRequest, res: import("express").Response): Promise<Project | null> {
   const id = String(req.params.id);
   if (!UUID_RE.test(id)) {
     res.status(404).json({ error: "Проект не найден" });
@@ -165,7 +165,7 @@ async function loadProjectOr404(req: AuthedRequest, res: import("express").Respo
     res.status(404).json({ error: "Проект не найден" });
     return null;
   }
-  return p;
+  return p as Project;
 }
 
 router.get("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
@@ -175,7 +175,7 @@ router.get("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
     .select("*")
     .eq("project_id", p.id)
     .order("order_index", { ascending: true });
-  res.json(serializeProject(p, scenes ?? []));
+  res.json(serializeProject(p, (scenes ?? []) as Scene[]));
 });
 
 router.patch("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
@@ -221,7 +221,7 @@ router.patch("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
     .select("*")
     .eq("project_id", p.id)
     .order("order_index", { ascending: true });
-  res.json(serializeProject(updated!, scenes ?? []));
+  res.json(serializeProject(updated as Project, (scenes ?? []) as Scene[]));
 });
 
 router.delete("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
@@ -272,7 +272,7 @@ router.post("/projects/:id/duplicate", requireAuth, async (req: AuthedRequest, r
     .order("order_index", { ascending: true });
   if (sourceScenes?.length) {
     const { error: insErr } = await sbFrom(TABLE.scenes).insert(
-      sourceScenes.map((s: any) => ({
+      (sourceScenes as Scene[]).map((s) => ({
         project_id: copy!.id,
         order_index: s.order_index,
         title: s.title,
@@ -291,7 +291,7 @@ router.post("/projects/:id/duplicate", requireAuth, async (req: AuthedRequest, r
     .select("*")
     .eq("project_id", copy!.id)
     .order("order_index", { ascending: true });
-  res.json(serializeProject(copy!, newScenes ?? []));
+  res.json(serializeProject(copy as Project, (newScenes ?? []) as Scene[]));
 });
 
 router.post("/projects/:id/share", requireAuth, async (req: AuthedRequest, res) => {
@@ -360,7 +360,7 @@ router.get("/share/:token", async (req, res) => {
     aspectRatio: p.aspect_ratio,
     finalVideoUrl: p.final_video_url,
     thumbnailUrl: p.thumbnail_url,
-    scenes: (scenes ?? []).map((s: any) => ({
+    scenes: ((scenes ?? []) as Scene[]).map((s) => ({
       orderIndex: s.order_index,
       title: s.title,
       narration: s.narration,

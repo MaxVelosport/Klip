@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type Scene } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeScene } from "./projects";
 import { pickImage } from "../lib/mock-content";
@@ -94,9 +94,10 @@ router.delete("/projects/:id/scenes/:sceneId", requireAuth, async (req: AuthedRe
     .select("*")
     .eq("project_id", p.id)
     .order("order_index", { ascending: true });
-  for (let i = 0; i < (remaining ?? []).length; i++) {
-    if ((remaining![i] as any).order_index !== i) {
-      await sbFrom(TABLE.scenes).update({ order_index: i }).eq("id", (remaining![i] as any).id);
+  const remainingScenes = (remaining ?? []) as Scene[];
+  for (let i = 0; i < remainingScenes.length; i++) {
+    if (remainingScenes[i]!.order_index !== i) {
+      await sbFrom(TABLE.scenes).update({ order_index: i }).eq("id", remainingScenes[i]!.id);
     }
   }
   res.json({ ok: true });
@@ -122,7 +123,7 @@ router.post("/projects/:id/scenes/reorder", requireAuth, async (req: AuthedReque
     res.status(400).json({ error: "Передайте все сцены проекта в нужном порядке (без пропусков)" });
     return;
   }
-  const existingIds = new Set((existing ?? []).map((s: any) => s.id));
+  const existingIds = new Set(((existing ?? []) as Scene[]).map((s) => s.id));
   for (const id of ids) {
     if (!existingIds.has(id)) {
       res.status(400).json({ error: "Среди переданных ids есть чужие сцены" });
@@ -152,11 +153,11 @@ router.post(
       .select("*")
       .eq("project_id", p.id)
       .order("order_index", { ascending: true });
-    for (const s of scenes ?? []) {
-      const seed = `${(s as any).id}:${Date.now()}:${Math.random()}`;
+    for (const s of (scenes ?? []) as Scene[]) {
+      const seed = `${s.id}:${Date.now()}:${Math.random()}`;
       await sbFrom(TABLE.scenes)
-        .update({ image_url: pickImage(seed, (s as any).order_index) })
-        .eq("id", (s as any).id);
+        .update({ image_url: pickImage(seed, s.order_index) })
+        .eq("id", s.id);
     }
     const { data: list } = await sbFrom(TABLE.scenes)
       .select("*")
@@ -185,9 +186,10 @@ router.post(
       res.status(404).json({ error: "Сцена не найдена" });
       return;
     }
-    const seed = `${(existing as any).id}:${Date.now()}`;
+    const existingScene = existing as Scene;
+    const seed = `${existingScene.id}:${Date.now()}`;
     await sbFrom(TABLE.scenes)
-      .update({ image_url: pickImage(seed, (existing as any).order_index) })
+      .update({ image_url: pickImage(seed, existingScene.order_index) })
       .eq("id", sceneId);
     const { data: s } = await sbFrom(TABLE.scenes).select("*").eq("id", sceneId).single();
     res.json(serializeScene(s!));
