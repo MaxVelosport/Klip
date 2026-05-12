@@ -114,6 +114,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 - [ ] `routes/admin.ts` — analytics → RPC neyroclip_admin_analytics
 - [ ] `lib/seed.ts` — upsert plans через /pg/query
 
+## Known tech debt for post-pitch cleanup
+
+1. **[POST-PITCH] neyroclip_refund_tokens idempotency**: добавить проверку
+   уникальности ref_id+reason в SQL функцию — защита от двойного refund при retry.
+
+2. **[POST-PITCH] Promo used_count**: переписать на RPC `neyroclip_increment_promo`
+   с atomic `UPDATE ... WHERE max_uses=0 OR used_count < max_uses`.
+
+3. **[POST-PITCH] Типизация**: заменить `(p as any)` на типизированные интерфейсы —
+   руками в `lib/db/src/types.ts` или через `supabase gen types typescript`.
+
 ## Запуск миграций
 ```bash
 scripts/node_modules/.bin/tsx --env-file=.env scripts/src/apply-migrations.ts

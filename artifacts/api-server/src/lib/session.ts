@@ -1,6 +1,5 @@
 import crypto from "crypto";
-import { db, sessionsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 import type { Request, Response, NextFunction } from "express";
 
 const COOKIE = "neuroclip.sid";
@@ -11,13 +10,15 @@ export type AuthedRequest = Request & {
   userRole?: string;
 };
 
-export async function createSession(
-  res: Response,
-  userId: string,
-): Promise<string> {
+export async function createSession(res: Response, userId: string): Promise<string> {
   const id = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessionsTable).values({ id, userId, expiresAt });
+  const { error } = await sbFrom(TABLE.sessions).insert({
+    id,
+    user_id: userId,
+    expires_at: expiresAt.toISOString(),
+  });
+  if (error) throw new Error(error.message);
   res.cookie(COOKIE, id, {
     httpOnly: true,
     sameSite: "lax",
@@ -31,7 +32,7 @@ export async function createSession(
 export async function destroySession(req: Request, res: Response) {
   const sid = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE];
   if (sid) {
-    await db.delete(sessionsTable).where(eq(sessionsTable.id, sid));
+    await sbFrom(TABLE.sessions).delete().eq("id", sid);
   }
   res.clearCookie(COOKIE, { path: "/" });
 }
@@ -40,16 +41,15 @@ export async function loadUser(req: AuthedRequest, _res: Response, next: NextFun
   const sid = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE];
   if (!sid) return next();
   try {
-    const rows = await db
-      .select({ userId: sessionsTable.userId, expiresAt: sessionsTable.expiresAt, role: usersTable.role })
-      .from(sessionsTable)
-      .innerJoin(usersTable, eq(usersTable.id, sessionsTable.userId))
-      .where(eq(sessionsTable.id, sid))
-      .limit(1);
-    const row = rows[0];
-    if (row && row.expiresAt > new Date()) {
-      req.userId = row.userId;
-      req.userRole = row.role;
+    const { data: session } = await sbFrom(TABLE.sessions).select("*").eq("id", sid).maybeSingle();
+    if (!session || new Date(session.expires_at) <= new Date()) return next();
+    const { data: user } = await sbFrom(TABLE.users)
+      .select("id, role")
+      .eq("id", session.user_id)
+      .maybeSingle();
+    if (user) {
+      req.userId = session.user_id;
+      req.userRole = (user as any).role;
     }
   } catch {
     /* ignore */
