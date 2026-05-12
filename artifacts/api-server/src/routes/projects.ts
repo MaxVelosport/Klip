@@ -1,100 +1,97 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
-import {
-  db,
-  projectsTable,
-  scenesTable,
-  auditLogTable,
-} from "@workspace/db";
-import { and, eq, isNull, asc, desc, ilike, sql } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
 
 function generateShareToken(): string {
-  // 32 hex chars (~128 bits) — устойчиво к перебору; URL-safe
   return randomBytes(16).toString("hex");
 }
 
-function serializeProject(p: typeof projectsTable.$inferSelect, scenes: (typeof scenesTable.$inferSelect)[] = []) {
+function serializeProject(p: any, scenes: any[] = []) {
   return {
     id: p.id,
     title: p.title,
-    topicDescription: p.topicDescription,
+    topicDescription: p.topic_description,
     category: p.category,
-    targetDurationSec: p.targetDurationSec,
-    durationSec: p.durationSec,
-    visualStyle: p.visualStyle,
-    voiceId: p.voiceId,
-    voiceSpeed: Number(p.voiceSpeed),
-    backgroundMusicId: p.backgroundMusicId,
-    musicVolume: p.musicVolume,
-    addSubtitles: p.addSubtitles,
+    targetDurationSec: p.target_duration_sec,
+    durationSec: p.duration_sec,
+    visualStyle: p.visual_style,
+    voiceId: p.voice_id,
+    voiceSpeed: Number(p.voice_speed),
+    backgroundMusicId: p.background_music_id,
+    musicVolume: p.music_volume,
+    addSubtitles: p.add_subtitles,
     status: p.status,
-    currentStep: p.currentStep,
-    aspectRatio: p.aspectRatio,
-    shareToken: p.shareToken,
-    parentProjectId: p.parentProjectId,
-    finalVideoUrl: p.finalVideoUrl,
-    thumbnailUrl: p.thumbnailUrl,
-    errorMessage: p.errorMessage,
+    currentStep: p.current_step,
+    aspectRatio: p.aspect_ratio,
+    shareToken: p.share_token,
+    parentProjectId: p.parent_project_id,
+    finalVideoUrl: p.final_video_url,
+    thumbnailUrl: p.thumbnail_url,
+    errorMessage: p.error_message,
     scenes: scenes.map(serializeScene),
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt.toISOString(),
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
   };
 }
 
-export function serializeScene(s: typeof scenesTable.$inferSelect) {
+export function serializeScene(s: any) {
   return {
     id: s.id,
-    projectId: s.projectId,
-    orderIndex: s.orderIndex,
+    projectId: s.project_id,
+    orderIndex: s.order_index,
     title: s.title,
     narration: s.narration,
-    imagePrompt: s.imagePrompt,
-    imageUrl: s.imageUrl,
-    audioUrl: s.audioUrl,
-    durationSec: Number(s.durationSec),
-    animationType: s.animationType,
-    transitionType: s.transitionType,
+    imagePrompt: s.image_prompt,
+    imageUrl: s.image_url,
+    audioUrl: s.audio_url,
+    durationSec: Number(s.duration_sec),
+    animationType: s.animation_type,
+    transitionType: s.transition_type,
   };
 }
 
 router.get("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : "all";
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
-  const conds = [eq(projectsTable.userId, req.userId!), isNull(projectsTable.deletedAt)];
-  if (status && status !== "all") conds.push(eq(projectsTable.status, status));
-  if (search) conds.push(ilike(projectsTable.title, `%${search}%`));
-  const rows = await db
-    .select()
-    .from(projectsTable)
-    .where(and(...conds))
-    .orderBy(desc(projectsTable.updatedAt))
+
+  let query = sbFrom(TABLE.projects)
+    .select("*")
+    .eq("user_id", req.userId!)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
     .limit(200);
-  const ids = rows.map((r) => r.id);
-  let counts = new Map<string, number>();
-  if (ids.length) {
-    const c = await db
-      .select({ projectId: scenesTable.projectId, count: sql<number>`count(*)::int` })
-      .from(scenesTable)
-      .where(sql`${scenesTable.projectId} = ANY(${ids})`)
-      .groupBy(scenesTable.projectId);
-    counts = new Map(c.map((x) => [x.projectId, Number(x.count)]));
+  if (status && status !== "all") query = query.eq("status", status);
+  if (search) query = query.ilike("title", `%${search}%`);
+
+  const { data: rows, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const projectList = rows ?? [];
+  const countMap = new Map<string, number>();
+  if (projectList.length) {
+    const ids = projectList.map((r: any) => r.id);
+    const { data: sceneCounts } = await sbFrom(TABLE.scenes).select("project_id").in("project_id", ids);
+    for (const s of sceneCounts ?? []) {
+      countMap.set(s.project_id, (countMap.get(s.project_id) ?? 0) + 1);
+    }
   }
+
   res.json(
-    rows.map((p) => ({
+    projectList.map((p: any) => ({
       id: p.id,
       title: p.title,
       status: p.status,
-      currentStep: p.currentStep,
-      durationSec: p.durationSec,
-      aspectRatio: p.aspectRatio,
-      thumbnailUrl: p.thumbnailUrl,
-      finalVideoUrl: p.finalVideoUrl,
-      sceneCount: counts.get(p.id) ?? 0,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
+      currentStep: p.current_step,
+      durationSec: p.duration_sec,
+      aspectRatio: p.aspect_ratio,
+      thumbnailUrl: p.thumbnail_url,
+      finalVideoUrl: p.final_video_url,
+      sceneCount: countMap.get(p.id) ?? 0,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
     })),
   );
 });
@@ -121,49 +118,49 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   ]);
   const cat = typeof category === "string" && ALLOWED_CATEGORIES.has(category) ? category : "educational";
   const ALLOWED_RATIOS = new Set(["16:9", "9:16", "1:1"]);
-  const ratio =
-    typeof aspectRatio === "string" && ALLOWED_RATIOS.has(aspectRatio) ? aspectRatio : "16:9";
-  const [created] = await db
-    .insert(projectsTable)
-    .values({
-      userId: req.userId!,
-      title: String(title).trim(),
-      topicDescription: String(topicDescription),
-      category: cat,
-      targetDurationSec: Number(targetDurationSec),
-      visualStyle: String(visualStyle),
-      voiceId: String(voiceId),
-      backgroundMusicId: backgroundMusicId ? String(backgroundMusicId) : null,
-      addSubtitles: Boolean(addSubtitles),
-      aspectRatio: ratio,
-      status: "draft",
-      currentStep: 1,
-    })
-    .returning();
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  const ratio = typeof aspectRatio === "string" && ALLOWED_RATIOS.has(aspectRatio) ? aspectRatio : "16:9";
+
+  const { data: created, error } = await sbFrom(TABLE.projects).insert({
+    user_id: req.userId!,
+    title: String(title).trim(),
+    topic_description: String(topicDescription),
+    category: cat,
+    target_duration_sec: Number(targetDurationSec),
+    visual_style: String(visualStyle),
+    voice_id: String(voiceId),
+    background_music_id: backgroundMusicId ? String(backgroundMusicId) : null,
+    add_subtitles: Boolean(addSubtitles),
+    aspect_ratio: ratio,
+    status: "draft",
+    current_step: 1,
+  }).select().single();
+  if (error) throw new Error(error.message);
+
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: "project_created",
-    entityType: "project",
-    entityId: created!.id,
-    message: `Создан проект «${created!.title}»`,
+    entity_type: "project",
+    entity_id: created.id,
+    message: `Создан проект «${created.title}»`,
   });
-  res.json(serializeProject(created!));
+  res.json(serializeProject(created));
 });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function loadProjectOr404(req: AuthedRequest, res: import("express").Response) {
   const id = String(req.params.id);
-  // Защита от 500: некорректный UUID никогда не существует — сразу 404.
   if (!UUID_RE.test(id)) {
     res.status(404).json({ error: "Проект не найден" });
     return null;
   }
-  const [p] = await db
-    .select()
-    .from(projectsTable)
-    .where(and(eq(projectsTable.id, id), eq(projectsTable.userId, req.userId!), isNull(projectsTable.deletedAt)))
-    .limit(1);
+  const { data: p, error } = await sbFrom(TABLE.projects)
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", req.userId!)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
   if (!p) {
     res.status(404).json({ error: "Проект не найден" });
     return null;
@@ -174,21 +171,20 @@ async function loadProjectOr404(req: AuthedRequest, res: import("express").Respo
 router.get("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  res.json(serializeProject(p, scenes));
+  const { data: scenes } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", p.id)
+    .order("order_index", { ascending: true });
+  res.json(serializeProject(p, scenes ?? []));
 });
 
 router.patch("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
   const b = req.body ?? {};
-  const updates: Partial<typeof projectsTable.$inferInsert> = {};
+  const updates: Record<string, unknown> = {};
   if (typeof b.title === "string") updates.title = b.title.trim();
-  if (typeof b.topicDescription === "string") updates.topicDescription = b.topicDescription;
+  if (typeof b.topicDescription === "string") updates.topic_description = b.topicDescription;
   if (typeof b.category === "string") {
     const ALLOWED = new Set([
       "educational", "historical", "content", "marketing", "news",
@@ -200,46 +196,46 @@ router.patch("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
     }
     updates.category = b.category;
   }
-  if (typeof b.targetDurationSec === "number") updates.targetDurationSec = b.targetDurationSec;
-  if (typeof b.visualStyle === "string") updates.visualStyle = b.visualStyle;
-  if (typeof b.voiceId === "string") updates.voiceId = b.voiceId;
-  if (b.backgroundMusicId !== undefined) updates.backgroundMusicId = b.backgroundMusicId;
-  if (typeof b.addSubtitles === "boolean") updates.addSubtitles = b.addSubtitles;
-  if (typeof b.currentStep === "number") updates.currentStep = b.currentStep;
-  if (typeof b.musicVolume === "number") updates.musicVolume = b.musicVolume;
-  if (typeof b.voiceSpeed === "number") updates.voiceSpeed = String(b.voiceSpeed);
+  if (typeof b.targetDurationSec === "number") updates.target_duration_sec = b.targetDurationSec;
+  if (typeof b.visualStyle === "string") updates.visual_style = b.visualStyle;
+  if (typeof b.voiceId === "string") updates.voice_id = b.voiceId;
+  if (b.backgroundMusicId !== undefined) updates.background_music_id = b.backgroundMusicId;
+  if (typeof b.addSubtitles === "boolean") updates.add_subtitles = b.addSubtitles;
+  if (typeof b.currentStep === "number") updates.current_step = b.currentStep;
+  if (typeof b.musicVolume === "number") updates.music_volume = b.musicVolume;
+  if (typeof b.voiceSpeed === "number") updates.voice_speed = String(b.voiceSpeed);
   if (typeof b.aspectRatio === "string") {
     const ALLOWED_RATIOS = new Set(["16:9", "9:16", "1:1"]);
     if (!ALLOWED_RATIOS.has(b.aspectRatio)) {
       res.status(400).json({ error: "Недопустимое соотношение сторон" });
       return;
     }
-    updates.aspectRatio = b.aspectRatio;
+    updates.aspect_ratio = b.aspectRatio;
   }
   if (Object.keys(updates).length) {
-    await db.update(projectsTable).set(updates).where(eq(projectsTable.id, p.id));
+    const { error } = await sbFrom(TABLE.projects).update(updates).eq("id", p.id);
+    if (error) throw new Error(error.message);
   }
-  const [updated] = await db.select().from(projectsTable).where(eq(projectsTable.id, p.id)).limit(1);
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  res.json(serializeProject(updated!, scenes));
+  const { data: updated } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).single();
+  const { data: scenes } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", p.id)
+    .order("order_index", { ascending: true });
+  res.json(serializeProject(updated!, scenes ?? []));
 });
 
 router.delete("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
-  await db
-    .update(projectsTable)
-    .set({ deletedAt: new Date() })
-    .where(eq(projectsTable.id, p.id));
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  const { error } = await sbFrom(TABLE.projects)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", p.id);
+  if (error) throw new Error(error.message);
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: "project_deleted",
-    entityType: "project",
-    entityId: p.id,
+    entity_type: "project",
+    entity_id: p.id,
     message: `Удалён проект «${p.title}»`,
   });
   res.json({ ok: true });
@@ -248,78 +244,73 @@ router.delete("/projects/:id", requireAuth, async (req: AuthedRequest, res) => {
 router.post("/projects/:id/duplicate", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
-  const [copy] = await db
-    .insert(projectsTable)
-    .values({
-      userId: req.userId!,
-      title: `${p.title} (копия)`,
-      topicDescription: p.topicDescription,
-      category: p.category,
-      targetDurationSec: p.targetDurationSec,
-      visualStyle: p.visualStyle,
-      voiceId: p.voiceId,
-      voiceSpeed: p.voiceSpeed,
-      backgroundMusicId: p.backgroundMusicId,
-      musicVolume: p.musicVolume,
-      addSubtitles: p.addSubtitles,
-      aspectRatio: p.aspectRatio,
-      parentProjectId: p.id,
-      status: p.status,
-      currentStep: p.currentStep,
-      durationSec: p.durationSec,
-      thumbnailUrl: p.thumbnailUrl,
-      finalVideoUrl: p.finalVideoUrl,
-    })
-    .returning();
-  const sourceScenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  if (sourceScenes.length) {
-    await db.insert(scenesTable).values(
-      sourceScenes.map((s) => ({
-        projectId: copy!.id,
-        orderIndex: s.orderIndex,
+  const { data: copy, error: copyErr } = await sbFrom(TABLE.projects).insert({
+    user_id: req.userId!,
+    title: `${p.title} (копия)`,
+    topic_description: p.topic_description,
+    category: p.category,
+    target_duration_sec: p.target_duration_sec,
+    visual_style: p.visual_style,
+    voice_id: p.voice_id,
+    voice_speed: p.voice_speed,
+    background_music_id: p.background_music_id,
+    music_volume: p.music_volume,
+    add_subtitles: p.add_subtitles,
+    aspect_ratio: p.aspect_ratio,
+    parent_project_id: p.id,
+    status: p.status,
+    current_step: p.current_step,
+    duration_sec: p.duration_sec,
+    thumbnail_url: p.thumbnail_url,
+    final_video_url: p.final_video_url,
+  }).select().single();
+  if (copyErr) throw new Error(copyErr.message);
+
+  const { data: sourceScenes } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", p.id)
+    .order("order_index", { ascending: true });
+  if (sourceScenes?.length) {
+    const { error: insErr } = await sbFrom(TABLE.scenes).insert(
+      sourceScenes.map((s: any) => ({
+        project_id: copy!.id,
+        order_index: s.order_index,
         title: s.title,
         narration: s.narration,
-        imagePrompt: s.imagePrompt,
-        imageUrl: s.imageUrl,
-        audioUrl: s.audioUrl,
-        durationSec: s.durationSec,
-        animationType: s.animationType,
-        transitionType: s.transitionType,
+        image_prompt: s.image_prompt,
+        image_url: s.image_url,
+        audio_url: s.audio_url,
+        duration_sec: s.duration_sec,
+        animation_type: s.animation_type,
+        transition_type: s.transition_type,
       })),
     );
+    if (insErr) throw new Error(insErr.message);
   }
-  const newScenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, copy!.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  res.json(serializeProject(copy!, newScenes));
+  const { data: newScenes } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", copy!.id)
+    .order("order_index", { ascending: true });
+  res.json(serializeProject(copy!, newScenes ?? []));
 });
 
 router.post("/projects/:id/share", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
-  // Шарить можно только готовое видео — иначе зрителю нечего показать
-  if (p.status !== "done" || !p.finalVideoUrl) {
+  if (p.status !== "done" || !p.final_video_url) {
     res.status(400).json({ error: "Можно делиться только готовым видео" });
     return;
   }
-  let token = p.shareToken;
+  let token = p.share_token;
   if (!token) {
     token = generateShareToken();
-    await db
-      .update(projectsTable)
-      .set({ shareToken: token })
-      .where(eq(projectsTable.id, p.id));
-    await db.insert(auditLogTable).values({
-      userId: req.userId!,
+    const { error } = await sbFrom(TABLE.projects).update({ share_token: token }).eq("id", p.id);
+    if (error) throw new Error(error.message);
+    await sbFrom(TABLE.auditLog).insert({
+      user_id: req.userId!,
       action: "project_shared",
-      entityType: "project",
-      entityId: p.id,
+      entity_type: "project",
+      entity_id: p.id,
       message: `Создана публичная ссылка для «${p.title}»`,
     });
   }
@@ -329,56 +320,51 @@ router.post("/projects/:id/share", requireAuth, async (req: AuthedRequest, res) 
 router.delete("/projects/:id/share", requireAuth, async (req: AuthedRequest, res) => {
   const p = await loadProjectOr404(req, res);
   if (!p) return;
-  if (p.shareToken) {
-    await db
-      .update(projectsTable)
-      .set({ shareToken: null })
-      .where(eq(projectsTable.id, p.id));
-    await db.insert(auditLogTable).values({
-      userId: req.userId!,
+  if (p.share_token) {
+    const { error } = await sbFrom(TABLE.projects).update({ share_token: null }).eq("id", p.id);
+    if (error) throw new Error(error.message);
+    await sbFrom(TABLE.auditLog).insert({
+      user_id: req.userId!,
       action: "project_share_revoked",
-      entityType: "project",
-      entityId: p.id,
+      entity_type: "project",
+      entity_id: p.id,
       message: `Отозвана публичная ссылка «${p.title}»`,
     });
   }
   res.json({ ok: true });
 });
 
-// Публичный эндпоинт — без requireAuth. Возвращает только безопасные поля.
 router.get("/share/:token", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
-  // Валидация: 32 hex-символа. Защита от случайных запросов и SQL-сюрпризов.
   if (!/^[a-f0-9]{32}$/i.test(token)) {
     res.status(404).json({ error: "Ссылка не найдена" });
     return;
   }
-  const [p] = await db
-    .select()
-    .from(projectsTable)
-    .where(and(eq(projectsTable.shareToken, token), isNull(projectsTable.deletedAt)))
-    .limit(1);
-  if (!p || p.status !== "done" || !p.finalVideoUrl) {
+  const { data: p, error } = await sbFrom(TABLE.projects)
+    .select("*")
+    .eq("share_token", token)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!p || p.status !== "done" || !p.final_video_url) {
     res.status(404).json({ error: "Ссылка не найдена или видео ещё не готово" });
     return;
   }
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  // Возвращаем минимальный набор — только то, что нужно публичной странице.
+  const { data: scenes } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", p.id)
+    .order("order_index", { ascending: true });
   res.json({
     title: p.title,
-    durationSec: p.durationSec,
-    aspectRatio: p.aspectRatio,
-    finalVideoUrl: p.finalVideoUrl,
-    thumbnailUrl: p.thumbnailUrl,
-    scenes: scenes.map((s) => ({
-      orderIndex: s.orderIndex,
+    durationSec: p.duration_sec,
+    aspectRatio: p.aspect_ratio,
+    finalVideoUrl: p.final_video_url,
+    thumbnailUrl: p.thumbnail_url,
+    scenes: (scenes ?? []).map((s: any) => ({
+      orderIndex: s.order_index,
       title: s.title,
       narration: s.narration,
-      durationSec: Number(s.durationSec),
+      durationSec: Number(s.duration_sec),
     })),
   });
 });

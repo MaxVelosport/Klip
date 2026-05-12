@@ -1,13 +1,5 @@
 import { Router } from "express";
 import { z } from "zod";
-import { eq, and, asc, isNull } from "drizzle-orm";
-import {
-  db,
-  projectsTable,
-  scenesTable,
-  scriptMessagesTable,
-  auditLogTable,
-} from "@workspace/db";
 import {
   Document,
   Packer,
@@ -16,6 +8,7 @@ import {
   TextRun,
   AlignmentType,
 } from "docx";
+import { sbFrom, TABLE } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: Router = Router();
@@ -23,17 +16,12 @@ const router: Router = Router();
 async function ownProject(req: AuthedRequest) {
   const id = String(req.params.id ?? "");
   if (!id) return null;
-  const [p] = await db
-    .select()
-    .from(projectsTable)
-    .where(
-      and(
-        eq(projectsTable.id, id),
-        eq(projectsTable.userId, req.userId!),
-        isNull(projectsTable.deletedAt),
-      ),
-    )
-    .limit(1);
+  const { data: p } = await sbFrom(TABLE.projects)
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", req.userId!)
+    .is("deleted_at", null)
+    .maybeSingle();
   return p ?? null;
 }
 
@@ -46,18 +34,18 @@ router.get(
       res.status(404).json({ error: "Проект не найден" });
       return;
     }
-    const rows = await db
-      .select()
-      .from(scriptMessagesTable)
-      .where(eq(scriptMessagesTable.projectId, p.id))
-      .orderBy(asc(scriptMessagesTable.createdAt));
+    const { data: rows, error } = await sbFrom(TABLE.scriptMessages)
+      .select("*")
+      .eq("project_id", (p as any).id)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
     res.json({
-      messages: rows.map((m) => ({
+      messages: (rows ?? []).map((m: any) => ({
         id: m.id,
         role: m.role,
         content: m.content,
-        diffSummary: m.diffSummary,
-        createdAt: m.createdAt.toISOString(),
+        diffSummary: m.diff_summary,
+        createdAt: m.created_at,
       })),
     });
   },
@@ -201,36 +189,37 @@ router.post(
     }
     const userMsg = parsed.data.message.trim();
 
-    await db.insert(scriptMessagesTable).values({
-      projectId: p.id,
-      userId: req.userId!,
+    const { error: uInsErr } = await sbFrom(TABLE.scriptMessages).insert({
+      project_id: (p as any).id,
+      user_id: req.userId!,
       role: "user",
       content: userMsg,
     });
+    if (uInsErr) throw new Error(uInsErr.message);
 
-    const scenes = await db
-      .select()
-      .from(scenesTable)
-      .where(eq(scenesTable.projectId, p.id))
-      .orderBy(asc(scenesTable.orderIndex));
+    const { data: scenes } = await sbFrom(TABLE.scenes)
+      .select("*")
+      .eq("project_id", (p as any).id)
+      .order("order_index", { ascending: true });
 
-    if (scenes.length === 0) {
+    if (!scenes || scenes.length === 0) {
       const reply = "Сначала сгенерируйте сценарий — мне нечего править.";
-      const [m] = await db
-        .insert(scriptMessagesTable)
-        .values({ projectId: p.id, userId: req.userId!, role: "assistant", content: reply })
-        .returning();
+      const { data: m, error } = await sbFrom(TABLE.scriptMessages)
+        .insert({ project_id: (p as any).id, user_id: req.userId!, role: "assistant", content: reply })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
       res.json({ assistant: serializeMsg(m!), changedSceneIds: [] });
       return;
     }
 
     const intent = detectIntent(userMsg);
-    const sceneInputs = scenes.map((s) => ({
+    const sceneInputs = scenes.map((s: any) => ({
       id: s.id,
-      orderIndex: s.orderIndex,
+      orderIndex: s.order_index,
       title: s.title,
       narration: s.narration,
-      durationSec: s.durationSec,
+      durationSec: s.duration_sec,
     }));
     const { updates, summary } = applyEdits(sceneInputs, intent, userMsg);
 
@@ -239,37 +228,33 @@ router.post(
       if (u.title !== undefined) set.title = u.title;
       if (u.narration !== undefined) set.narration = u.narration;
       if (Object.keys(set).length === 0) continue;
-      await db.update(scenesTable).set(set).where(eq(scenesTable.id, u.id));
+      await sbFrom(TABLE.scenes).update(set).eq("id", u.id);
     }
 
     const changedSceneIds = updates.map((u) => u.id);
     const diffSummary =
-      updates.length === 0
-        ? "Без изменений сцен."
-        : `Обновлено сцен: ${updates.length}.`;
-
+      updates.length === 0 ? "Без изменений сцен." : `Обновлено сцен: ${updates.length}.`;
     const replyContent =
-      updates.length === 0
-        ? `${summary}`
-        : `${summary} ${diffSummary}`;
+      updates.length === 0 ? `${summary}` : `${summary} ${diffSummary}`;
 
-    const [assistant] = await db
-      .insert(scriptMessagesTable)
-      .values({
-        projectId: p.id,
-        userId: req.userId!,
+    const { data: assistant, error: aInsErr } = await sbFrom(TABLE.scriptMessages)
+      .insert({
+        project_id: (p as any).id,
+        user_id: req.userId!,
         role: "assistant",
         content: replyContent,
-        diffSummary,
+        diff_summary: diffSummary,
       })
-      .returning();
+      .select()
+      .single();
+    if (aInsErr) throw new Error(aInsErr.message);
 
     if (updates.length > 0) {
-      await db.insert(auditLogTable).values({
-        userId: req.userId!,
+      await sbFrom(TABLE.auditLog).insert({
+        user_id: req.userId!,
         action: "script_refined",
-        entityType: "project",
-        entityId: p.id,
+        entity_type: "project",
+        entity_id: (p as any).id,
         message: `Сценарий доработан через чат (${updates.length} сцен)`,
       });
     }
@@ -278,13 +263,13 @@ router.post(
   },
 );
 
-function serializeMsg(m: typeof scriptMessagesTable.$inferSelect) {
+function serializeMsg(m: any) {
   return {
     id: m.id,
     role: m.role,
     content: m.content,
-    diffSummary: m.diffSummary,
-    createdAt: m.createdAt.toISOString(),
+    diffSummary: m.diff_summary,
+    createdAt: m.created_at,
   };
 }
 
@@ -297,15 +282,15 @@ router.post(
       res.status(404).json({ error: "Проект не найден" });
       return;
     }
-    await db
-      .update(projectsTable)
-      .set({ currentStep: Math.max(p.currentStep, 3) })
-      .where(eq(projectsTable.id, p.id));
-    await db.insert(auditLogTable).values({
-      userId: req.userId!,
+    const { error } = await sbFrom(TABLE.projects)
+      .update({ current_step: Math.max((p as any).current_step, 3) })
+      .eq("id", (p as any).id);
+    if (error) throw new Error(error.message);
+    await sbFrom(TABLE.auditLog).insert({
+      user_id: req.userId!,
       action: "script_approved",
-      entityType: "project",
-      entityId: p.id,
+      entity_type: "project",
+      entity_id: (p as any).id,
       message: `Сценарий согласован`,
     });
     res.json({ ok: true });
@@ -341,33 +326,33 @@ router.get(
       res.status(400).json({ error: "Поддерживаются форматы: txt, md, docx" });
       return;
     }
-    const scenes = await db
-      .select()
-      .from(scenesTable)
-      .where(eq(scenesTable.projectId, p.id))
-      .orderBy(asc(scenesTable.orderIndex));
+    const { data: scenes } = await sbFrom(TABLE.scenes)
+      .select("*")
+      .eq("project_id", (p as any).id)
+      .order("order_index", { ascending: true });
 
-    const base = safeFileName(p.title || "scenario");
+    const sceneList = scenes ?? [];
+    const base = safeFileName((p as any).title || "scenario");
     const filename = `${base}.${fmt}`;
-    const totalSec = scenes.reduce((acc, s) => acc + Number(s.durationSec), 0);
+    const totalSec = sceneList.reduce((acc: number, s: any) => acc + Number(s.duration_sec), 0);
 
     if (fmt === "txt") {
       const lines: string[] = [];
-      lines.push(p.title);
-      lines.push("=".repeat(Math.max(3, p.title.length)));
+      lines.push((p as any).title);
+      lines.push("=".repeat(Math.max(3, (p as any).title.length)));
       lines.push("");
-      lines.push(`Тема: ${p.topicDescription}`);
+      lines.push(`Тема: ${(p as any).topic_description}`);
       lines.push(`Длительность (план): ~${Math.round(totalSec)} сек`);
-      lines.push(`Сцен: ${scenes.length}`);
+      lines.push(`Сцен: ${sceneList.length}`);
       lines.push("");
-      scenes.forEach((s, i) => {
-        lines.push(`Сцена ${i + 1}. ${s.title} (~${Number(s.durationSec)} сек)`);
+      sceneList.forEach((s: any, i: number) => {
+        lines.push(`Сцена ${i + 1}. ${s.title} (~${Number(s.duration_sec)} сек)`);
         lines.push("-".repeat(40));
         lines.push("Текст диктора:");
         lines.push(s.narration || "—");
         lines.push("");
         lines.push("Подсказка для изображения:");
-        lines.push(s.imagePrompt || "—");
+        lines.push(s.image_prompt || "—");
         lines.push("");
       });
       const buf = Buffer.from(lines.join("\n"), "utf-8");
@@ -379,18 +364,18 @@ router.get(
 
     if (fmt === "md") {
       const lines: string[] = [];
-      lines.push(`# ${p.title}`);
+      lines.push(`# ${(p as any).title}`);
       lines.push("");
-      lines.push(`**Тема:** ${p.topicDescription}`);
+      lines.push(`**Тема:** ${(p as any).topic_description}`);
       lines.push("");
       lines.push(`**Длительность (план):** ~${Math.round(totalSec)} сек`);
       lines.push("");
-      lines.push(`**Сцен:** ${scenes.length}`);
+      lines.push(`**Сцен:** ${sceneList.length}`);
       lines.push("");
-      scenes.forEach((s, i) => {
+      sceneList.forEach((s: any, i: number) => {
         lines.push(`## Сцена ${i + 1}. ${s.title}`);
         lines.push("");
-        lines.push(`*~${Number(s.durationSec)} сек*`);
+        lines.push(`*~${Number(s.duration_sec)} сек*`);
         lines.push("");
         lines.push(`**Текст диктора:**`);
         lines.push("");
@@ -399,7 +384,7 @@ router.get(
         lines.push(`**Подсказка для изображения:**`);
         lines.push("");
         lines.push("```");
-        lines.push(s.imagePrompt || "—");
+        lines.push(s.image_prompt || "—");
         lines.push("```");
         lines.push("");
       });
@@ -413,20 +398,20 @@ router.get(
     // docx
     const doc = new Document({
       creator: "НейроКлип",
-      title: p.title,
+      title: (p as any).title,
       sections: [
         {
           properties: {},
           children: [
             new Paragraph({
-              text: p.title,
+              text: (p as any).title,
               heading: HeadingLevel.TITLE,
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
               children: [
                 new TextRun({ text: "Тема: ", bold: true }),
-                new TextRun(p.topicDescription),
+                new TextRun((p as any).topic_description),
               ],
             }),
             new Paragraph({
@@ -438,25 +423,25 @@ router.get(
             new Paragraph({
               children: [
                 new TextRun({ text: "Сцен: ", bold: true }),
-                new TextRun(String(scenes.length)),
+                new TextRun(String(sceneList.length)),
               ],
             }),
             new Paragraph({ text: "" }),
-            ...scenes.flatMap((s, i) => [
+            ...sceneList.flatMap((s: any, i: number) => [
               new Paragraph({
                 text: `Сцена ${i + 1}. ${s.title}`,
                 heading: HeadingLevel.HEADING_1,
               }),
               new Paragraph({
                 children: [
-                  new TextRun({ text: `~${Number(s.durationSec)} сек`, italics: true, color: "666666" }),
+                  new TextRun({ text: `~${Number(s.duration_sec)} сек`, italics: true, color: "666666" }),
                 ],
               }),
               new Paragraph({ children: [new TextRun({ text: "Текст диктора:", bold: true })] }),
               new Paragraph({ text: s.narration || "—" }),
               new Paragraph({ children: [new TextRun({ text: "Подсказка для изображения:", bold: true })] }),
               new Paragraph({
-                children: [new TextRun({ text: s.imagePrompt || "—", font: "Consolas" })],
+                children: [new TextRun({ text: s.image_prompt || "—", font: "Consolas" })],
               }),
               new Paragraph({ text: "" }),
             ]),
