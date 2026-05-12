@@ -1,18 +1,16 @@
-import { db, plansTable, promoCodesTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sbFrom, TABLE } from "@workspace/db";
 
 export async function seedStaticData() {
-  await db
-    .insert(plansTable)
-    .values([
+  await sbFrom(TABLE.plans).upsert(
+    [
       {
         id: "free",
         name: "Free",
         tagline: "Попробовать без вложений",
-        priceMonthRub: 0,
-        priceYearRub: 0,
-        videosPerMonth: 3,
-        maxDurationMin: 1,
+        price_month_rub: 0,
+        price_year_rub: 0,
+        videos_per_month: 3,
+        max_duration_min: 1,
         features: [
           "До 3 видео в месяц",
           "Длительность до 1 минуты",
@@ -27,10 +25,10 @@ export async function seedStaticData() {
         id: "standard",
         name: "Standard",
         tagline: "Для регулярного контента",
-        priceMonthRub: 990,
-        priceYearRub: 9900,
-        videosPerMonth: 30,
-        maxDurationMin: 5,
+        price_month_rub: 990,
+        price_year_rub: 9900,
+        videos_per_month: 30,
+        max_duration_min: 5,
         features: [
           "До 30 видео в месяц",
           "Длительность до 5 минут",
@@ -46,10 +44,10 @@ export async function seedStaticData() {
         id: "pro",
         name: "Pro",
         tagline: "Для студий и агентств",
-        priceMonthRub: 2990,
-        priceYearRub: 29900,
-        videosPerMonth: 150,
-        maxDurationMin: 120,
+        price_month_rub: 2990,
+        price_year_rub: 29900,
+        videos_per_month: 150,
+        max_duration_min: 120,
         features: [
           "До 150 видео в месяц",
           "Длительность до 2 часов",
@@ -63,27 +61,15 @@ export async function seedStaticData() {
         watermark: false,
         recommended: false,
       },
-    ])
-    .onConflictDoUpdate({
-      target: plansTable.id,
-      set: {
-        name: sql`EXCLUDED.name`,
-        tagline: sql`EXCLUDED.tagline`,
-        priceMonthRub: sql`EXCLUDED.price_month_rub`,
-        priceYearRub: sql`EXCLUDED.price_year_rub`,
-        videosPerMonth: sql`EXCLUDED.videos_per_month`,
-        maxDurationMin: sql`EXCLUDED.max_duration_min`,
-        features: sql`EXCLUDED.features`,
-        watermark: sql`EXCLUDED.watermark`,
-        recommended: sql`EXCLUDED.recommended`,
-      },
-    });
+    ],
+    { onConflict: "id" },
+  );
 
-  await db
-    .insert(promoCodesTable)
-    .values([
-      { code: "WELCOME100", discountType: "tokens", discountValue: 100, maxUses: 10000, isActive: true },
-      { code: "NEUROBOOST", discountType: "tokens", discountValue: 500, maxUses: 1000, isActive: true },
-    ])
-    .onConflictDoNothing();
+  await sbFrom(TABLE.promoCodes).upsert(
+    [
+      { code: "WELCOME100", discount_type: "tokens", discount_value: 100, max_uses: 10000, is_active: true },
+      { code: "NEUROBOOST", discount_type: "tokens", discount_value: 500, max_uses: 1000, is_active: true },
+    ],
+    { onConflict: "code", ignoreDuplicates: true },
+  );
 }
