@@ -1,14 +1,5 @@
 import { Router, type IRouter } from "express";
-import {
-  db,
-  projectsTable,
-  scenesTable,
-  renderJobsTable,
-  auditLogTable,
-  tokenBalancesTable,
-  tokenTransactionsTable,
-} from "@workspace/db";
-import { and, eq, isNull, asc, sql } from "drizzle-orm";
+import { sbFrom, sbRpc, TABLE } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeScene } from "./projects";
 import { generateScript, pickImage, SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
@@ -21,111 +12,59 @@ import {
 const router: IRouter = Router();
 
 async function getBalance(userId: string): Promise<number> {
-  const [bal] = await db
-    .select()
-    .from(tokenBalancesTable)
-    .where(eq(tokenBalancesTable.userId, userId))
-    .limit(1);
-  return bal?.balance ?? 0;
+  const { data } = await sbFrom(TABLE.tokenBalances).select("balance").eq("user_id", userId).maybeSingle();
+  return (data as any)?.balance ?? 0;
 }
 
-/**
- * Atomically charge tokens. Returns { ok: true, balanceAfter } on success, or
- * { ok: false, balance } if the user does not have enough tokens. Uses a single
- * conditional UPDATE so two concurrent requests cannot both succeed.
- */
 async function chargeTokens(
   userId: string,
   amount: number,
   projectId: string,
   reason: string,
 ): Promise<{ ok: true; balanceAfter: number } | { ok: false; balance: number }> {
-  return await db.transaction(async (tx) => {
-    await tx
-      .insert(tokenBalancesTable)
-      .values({ userId, balance: 0 })
-      .onConflictDoNothing();
-    const updated = await tx
-      .update(tokenBalancesTable)
-      .set({ balance: sql`${tokenBalancesTable.balance} - ${amount}` })
-      .where(
-        and(
-          eq(tokenBalancesTable.userId, userId),
-          sql`${tokenBalancesTable.balance} >= ${amount}`,
-        ),
-      )
-      .returning({ balance: tokenBalancesTable.balance });
-    if (updated.length === 0) {
-      const [bal] = await tx
-        .select()
-        .from(tokenBalancesTable)
-        .where(eq(tokenBalancesTable.userId, userId))
-        .limit(1);
-      return { ok: false as const, balance: bal?.balance ?? 0 };
+  const { data, error } = await sbRpc("neyroclip_spend_tokens", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_ref_id: projectId,
+    p_reason: reason,
+  });
+  if (error) {
+    if (error.message?.includes("INSUFFICIENT_TOKENS")) {
+      const balance = await getBalance(userId);
+      return { ok: false as const, balance };
     }
-    await tx.insert(tokenTransactionsTable).values({
-      userId,
-      delta: -amount,
-      reason,
-      refId: projectId,
-    });
-    return { ok: true as const, balanceAfter: updated[0]!.balance };
+    throw new Error(error.message);
+  }
+  return { ok: true as const, balanceAfter: (data as any).new_balance };
+}
+
+async function refundTokens(userId: string, amount: number, jobId: string, note: string) {
+  const { error } = await sbRpc("neyroclip_refund_tokens", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_ref_id: jobId,
+    p_reason: "refund",
+  });
+  if (error && !error.message?.includes("USER_NOT_FOUND")) {
+    // best-effort: log but don't throw inside setTimeout
+    console.error(`refundTokens error for job ${jobId}:`, error.message);
+    return;
+  }
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: userId,
+    action: "render_refund",
+    entity_type: "render_job",
+    entity_id: jobId,
+    message: note,
   });
 }
 
-/**
- * Idempotent refund — if a refund row for (refId, reason="refund") already
- * exists, no double-credit. Used when an async render job ends in failure.
- */
-async function refundTokens(
-  userId: string,
-  amount: number,
-  jobId: string,
-  note: string,
-) {
-  await db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ id: tokenTransactionsTable.id })
-      .from(tokenTransactionsTable)
-      .where(
-        and(
-          eq(tokenTransactionsTable.refId, jobId),
-          eq(tokenTransactionsTable.reason, "refund"),
-        ),
-      )
-      .limit(1);
-    if (existing.length) return;
-    await tx
-      .insert(tokenBalancesTable)
-      .values({ userId, balance: 0 })
-      .onConflictDoNothing();
-    await tx
-      .update(tokenBalancesTable)
-      .set({ balance: sql`${tokenBalancesTable.balance} + ${amount}` })
-      .where(eq(tokenBalancesTable.userId, userId));
-    await tx.insert(tokenTransactionsTable).values({
-      userId,
-      delta: amount,
-      reason: "refund",
-      refId: jobId,
-    });
-    await tx.insert(auditLogTable).values({
-      userId,
-      action: "render_refund",
-      entityType: "render_job",
-      entityId: jobId,
-      message: note,
-    });
-  });
-}
-
-async function loadProjectAndScenes(p: typeof projectsTable.$inferSelect) {
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
-  return scenes;
+async function loadScenes(projectId: string) {
+  const { data } = await sbFrom(TABLE.scenes)
+    .select("*")
+    .eq("project_id", projectId)
+    .order("order_index", { ascending: true });
+  return (data ?? []) as any[];
 }
 
 function serializeCost(b: CostBreakdown) {
@@ -144,75 +83,78 @@ function serializeCost(b: CostBreakdown) {
 
 async function ownProject(req: AuthedRequest) {
   const id = String(req.params.id);
-  const [p] = await db
-    .select()
-    .from(projectsTable)
-    .where(and(eq(projectsTable.id, id), eq(projectsTable.userId, req.userId!), isNull(projectsTable.deletedAt)))
-    .limit(1);
-  return p ?? null;
+  const { data: p } = await sbFrom(TABLE.projects)
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", req.userId!)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return (p as any) ?? null;
 }
 
-async function returnProject(p: typeof projectsTable.$inferSelect, res: import("express").Response) {
-  const [updated] = await db.select().from(projectsTable).where(eq(projectsTable.id, p.id)).limit(1);
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
+async function returnProject(p: any, res: import("express").Response) {
+  const { data: updated } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).single();
+  const scenes = await loadScenes(p.id);
+  const u = updated as any;
   res.json({
-    id: updated!.id,
-    title: updated!.title,
-    topicDescription: updated!.topicDescription,
-    category: updated!.category,
-    targetDurationSec: updated!.targetDurationSec,
-    durationSec: updated!.durationSec,
-    visualStyle: updated!.visualStyle,
-    voiceId: updated!.voiceId,
-    voiceSpeed: Number(updated!.voiceSpeed),
-    backgroundMusicId: updated!.backgroundMusicId,
-    musicVolume: updated!.musicVolume,
-    addSubtitles: updated!.addSubtitles,
-    status: updated!.status,
-    currentStep: updated!.currentStep,
-    finalVideoUrl: updated!.finalVideoUrl,
-    thumbnailUrl: updated!.thumbnailUrl,
-    errorMessage: updated!.errorMessage,
+    id: u.id,
+    title: u.title,
+    topicDescription: u.topic_description,
+    category: u.category,
+    targetDurationSec: u.target_duration_sec,
+    durationSec: u.duration_sec,
+    visualStyle: u.visual_style,
+    voiceId: u.voice_id,
+    voiceSpeed: Number(u.voice_speed),
+    backgroundMusicId: u.background_music_id,
+    musicVolume: u.music_volume,
+    addSubtitles: u.add_subtitles,
+    status: u.status,
+    currentStep: u.current_step,
+    finalVideoUrl: u.final_video_url,
+    thumbnailUrl: u.thumbnail_url,
+    errorMessage: u.error_message,
     scenes: scenes.map(serializeScene),
-    createdAt: updated!.createdAt.toISOString(),
-    updatedAt: updated!.updatedAt.toISOString(),
+    createdAt: u.created_at,
+    updatedAt: u.updated_at,
   });
 }
 
 router.post("/projects/:id/generate-script", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
-  await db.delete(scenesTable).where(eq(scenesTable.projectId, p.id));
-  const generated = generateScript(p.topicDescription, p.targetDurationSec, p.visualStyle, (p.category ?? "educational") as Parameters<typeof generateScript>[3]);
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  await sbFrom(TABLE.scenes).delete().eq("project_id", p.id);
+
+  const generated = generateScript(
+    p.topic_description,
+    p.target_duration_sec,
+    p.visual_style,
+    (p.category ?? "educational") as Parameters<typeof generateScript>[3],
+  );
   let totalDuration = 0;
   for (let i = 0; i < generated.length; i++) {
     const s = generated[i]!;
     totalDuration += s.durationSec;
-    await db.insert(scenesTable).values({
-      projectId: p.id,
-      orderIndex: i,
+    await sbFrom(TABLE.scenes).insert({
+      project_id: p.id,
+      order_index: i,
       title: s.title,
       narration: s.narration,
-      imagePrompt: s.imagePrompt,
-      durationSec: String(s.durationSec),
+      image_prompt: s.imagePrompt,
+      duration_sec: String(s.durationSec),
     });
   }
-  await db
-    .update(projectsTable)
-    .set({ status: "script_ready", durationSec: totalDuration, currentStep: Math.max(p.currentStep, 2) })
-    .where(eq(projectsTable.id, p.id));
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  await sbFrom(TABLE.projects).update({
+    status: "script_ready",
+    duration_sec: totalDuration,
+    current_step: Math.max(p.current_step, 2),
+  }).eq("id", p.id);
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: "script_generated",
-    entityType: "project",
-    entityId: p.id,
+    entity_type: "project",
+    entity_id: p.id,
     message: `Сгенерирован сценарий (${generated.length} сцен)`,
   });
   await returnProject(p, res);
@@ -220,31 +162,23 @@ router.post("/projects/:id/generate-script", requireAuth, async (req: AuthedRequ
 
 router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  const scenes = await loadScenes(p.id);
   for (const s of scenes) {
-    await db
-      .update(scenesTable)
-      .set({ imageUrl: pickImage(s.id, s.orderIndex) })
-      .where(eq(scenesTable.id, s.id));
+    await sbFrom(TABLE.scenes).update({ image_url: pickImage(s.id, s.order_index) }).eq("id", s.id);
   }
   const thumb = scenes[0] ? pickImage(scenes[0].id, 0) : null;
-  await db
-    .update(projectsTable)
-    .set({ status: "images_ready", thumbnailUrl: thumb, currentStep: Math.max(p.currentStep, 3) })
-    .where(eq(projectsTable.id, p.id));
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  await sbFrom(TABLE.projects).update({
+    status: "images_ready",
+    thumbnail_url: thumb,
+    current_step: Math.max(p.current_step, 3),
+  }).eq("id", p.id);
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: "images_generated",
-    entityType: "project",
-    entityId: p.id,
+    entity_type: "project",
+    entity_id: p.id,
     message: `Сгенерированы изображения`,
   });
   await returnProject(p, res);
@@ -252,62 +186,47 @@ router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequ
 
 router.post("/projects/:id/generate-audio", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
-  const scenes = await db
-    .select()
-    .from(scenesTable)
-    .where(eq(scenesTable.projectId, p.id))
-    .orderBy(asc(scenesTable.orderIndex));
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  const scenes = await loadScenes(p.id);
   for (const s of scenes) {
-    await db
-      .update(scenesTable)
-      .set({ audioUrl: SAMPLE_AUDIO_URL })
-      .where(eq(scenesTable.id, s.id));
+    await sbFrom(TABLE.scenes).update({ audio_url: SAMPLE_AUDIO_URL }).eq("id", s.id);
   }
-  await db
-    .update(projectsTable)
-    .set({ status: "audio_ready", currentStep: Math.max(p.currentStep, 5) })
-    .where(eq(projectsTable.id, p.id));
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  await sbFrom(TABLE.projects).update({
+    status: "audio_ready",
+    current_step: Math.max(p.current_step, 5),
+  }).eq("id", p.id);
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: "audio_generated",
-    entityType: "project",
-    entityId: p.id,
+    entity_type: "project",
+    entity_id: p.id,
     message: `Сгенерирована озвучка`,
   });
   await returnProject(p, res);
 });
 
-router.post(
-  "/projects/:id/cost-estimate",
-  requireAuth,
-  async (req: AuthedRequest, res) => {
-    const p = await ownProject(req);
-    if (!p) {
-      res.status(404).json({ error: "Проект не найден" });
-      return;
-    }
-    const scenes = await loadProjectAndScenes(p);
-    const quality = parseQuality(req.body?.quality);
-    const removeWatermark = Boolean(req.body?.removeWatermark);
-    const breakdown = computeProjectCost(p, scenes, { quality, removeWatermark });
-    const balance = await getBalance(req.userId!);
-    res.json({
-      cost: serializeCost(breakdown),
-      balance,
-      sufficient: balance >= breakdown.total,
-      missing: Math.max(0, breakdown.total - balance),
-    });
-  },
-);
+router.post("/projects/:id/cost-estimate", requireAuth, async (req: AuthedRequest, res) => {
+  const p = await ownProject(req);
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  const scenes = await loadScenes(p.id);
+  const quality = parseQuality(req.body?.quality);
+  const removeWatermark = Boolean(req.body?.removeWatermark);
+  const breakdown = computeProjectCost(p, scenes, { quality, removeWatermark });
+  const balance = await getBalance(req.userId!);
+  res.json({
+    cost: serializeCost(breakdown),
+    balance,
+    sufficient: balance >= breakdown.total,
+    missing: Math.max(0, breakdown.total - balance),
+  });
+});
 
 async function startRenderJob(opts: {
   req: AuthedRequest;
   res: import("express").Response;
-  p: typeof projectsTable.$inferSelect;
+  p: any;
   reason: "render" | "rerender";
   resetToAudioReady: boolean;
 }) {
@@ -316,7 +235,7 @@ async function startRenderJob(opts: {
     res.status(409).json({ error: "Рендер уже выполняется" });
     return;
   }
-  const scenes = await loadProjectAndScenes(p);
+  const scenes = await loadScenes(p.id);
   const quality = parseQuality(req.body?.quality);
   const removeWatermark = Boolean(req.body?.removeWatermark);
   const breakdown = computeProjectCost(p, scenes, { quality, removeWatermark });
@@ -333,81 +252,73 @@ async function startRenderJob(opts: {
   }
 
   if (resetToAudioReady) {
-    await db
-      .update(projectsTable)
-      .set({ status: "audio_ready", finalVideoUrl: null, errorMessage: null })
-      .where(eq(projectsTable.id, p.id));
+    await sbFrom(TABLE.projects).update({
+      status: "audio_ready",
+      final_video_url: null,
+      error_message: null,
+    }).eq("id", p.id);
   }
-  const [job] = await db
-    .insert(renderJobsTable)
-    .values({
-      projectId: p.id,
-      jobType: reason,
-      status: "running",
-      progress: 5,
-      startedAt: new Date(),
-    })
-    .returning();
-  await db
-    .update(projectsTable)
-    .set({ status: "rendering", currentStep: 6 })
-    .where(eq(projectsTable.id, p.id));
-  await db.insert(auditLogTable).values({
-    userId: req.userId!,
+  const { data: job, error: jobErr } = await sbFrom(TABLE.renderJobs).insert({
+    project_id: p.id,
+    job_type: reason,
+    status: "running",
+    progress: 5,
+    started_at: new Date().toISOString(),
+  }).select().single();
+  if (jobErr) throw new Error(jobErr.message);
+
+  await sbFrom(TABLE.projects).update({ status: "rendering", current_step: 6 }).eq("id", p.id);
+  await sbFrom(TABLE.auditLog).insert({
+    user_id: req.userId!,
     action: `${reason}_started`,
-    entityType: "project",
-    entityId: p.id,
+    entity_type: "project",
+    entity_id: p.id,
     message: `Списано ${breakdown.total} жетонов за «${p.title}» (${breakdown.qualityLabel})`,
   });
 
+  const jobId = (job as any).id;
+  const userId = req.userId!;
+
   setTimeout(async () => {
     try {
-      const [latest] = await db
-        .select()
-        .from(projectsTable)
-        .where(eq(projectsTable.id, p.id))
-        .limit(1);
-      if (!latest || latest.deletedAt) return;
-      await db
-        .update(renderJobsTable)
-        .set({ status: "succeeded", progress: 100, finishedAt: new Date() })
-        .where(eq(renderJobsTable.id, job!.id));
-      await db
-        .update(projectsTable)
-        .set({ status: "done", finalVideoUrl: SAMPLE_VIDEO_URL, currentStep: 6 })
-        .where(eq(projectsTable.id, p.id));
-      await db.insert(auditLogTable).values({
-        userId: latest.userId,
+      const { data: latest } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).maybeSingle();
+      if (!latest || (latest as any).deleted_at) return;
+      await sbFrom(TABLE.renderJobs).update({
+        status: "succeeded",
+        progress: 100,
+        finished_at: new Date().toISOString(),
+      }).eq("id", jobId);
+      await sbFrom(TABLE.projects).update({
+        status: "done",
+        final_video_url: SAMPLE_VIDEO_URL,
+        current_step: 6,
+      }).eq("id", p.id);
+      await sbFrom(TABLE.auditLog).insert({
+        user_id: (latest as any).user_id,
         action: `${reason}_done`,
-        entityType: "project",
-        entityId: p.id,
-        message: `Видео «${latest.title}» готово`,
+        entity_type: "project",
+        entity_id: p.id,
+        message: `Видео «${(latest as any).title}» готово`,
       });
     } catch (err) {
       try {
-        await db
-          .update(renderJobsTable)
-          .set({
-            status: "failed",
-            finishedAt: new Date(),
-            errorMessage: err instanceof Error ? err.message : "render failed",
-          })
-          .where(eq(renderJobsTable.id, job!.id));
-        await db
-          .update(projectsTable)
-          .set({
-            status: "failed",
-            errorMessage: "Не удалось собрать видео. Жетоны возвращены на баланс.",
-          })
-          .where(eq(projectsTable.id, p.id));
+        await sbFrom(TABLE.renderJobs).update({
+          status: "failed",
+          finished_at: new Date().toISOString(),
+          error_message: err instanceof Error ? err.message : "render failed",
+        }).eq("id", jobId);
+        await sbFrom(TABLE.projects).update({
+          status: "failed",
+          error_message: "Не удалось собрать видео. Жетоны возвращены на баланс.",
+        }).eq("id", p.id);
         await refundTokens(
-          req.userId!,
+          userId,
           breakdown.total,
-          job!.id,
+          jobId,
           `Возврат ${breakdown.total} жетонов: рендер «${p.title}» завершился с ошибкой`,
         );
       } catch {
-        /* nothing else we can do here */
+        /* nothing else we can do */
       }
     }
   }, 6000);
@@ -417,34 +328,27 @@ async function startRenderJob(opts: {
 
 router.post("/projects/:id/render", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
   await startRenderJob({ req, res, p, reason: "render", resetToAudioReady: false });
 });
 
 router.post("/projects/:id/rerender", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
   await startRenderJob({ req, res, p, reason: "rerender", resetToAudioReady: true });
 });
 
 router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
-  const [job] = await db
-    .select()
-    .from(renderJobsTable)
-    .where(eq(renderJobsTable.projectId, p.id))
-    .orderBy(sql`${renderJobsTable.createdAt} DESC`)
-    .limit(1);
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  const { data: job } = await sbFrom(TABLE.renderJobs)
+    .select("*")
+    .eq("project_id", p.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const j = job as any;
 
   let progress = 0;
   let stage = "Ожидание";
@@ -452,8 +356,8 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
   if (p.status === "done") {
     progress = 100;
     stage = "Готово";
-  } else if (p.status === "rendering" && job) {
-    const elapsed = (Date.now() - (job.startedAt?.getTime() ?? Date.now())) / 1000;
+  } else if (p.status === "rendering" && j) {
+    const elapsed = (Date.now() - (j.started_at ? new Date(j.started_at).getTime() : Date.now())) / 1000;
     progress = Math.min(95, Math.floor((elapsed / 6) * 100));
     stage = progress < 30 ? "Сборка кадров" : progress < 70 ? "Микширование звука" : "Финализация MP4";
     eta = Math.max(0, 6 - Math.floor(elapsed));
@@ -466,7 +370,7 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
   res.json({
     projectId: p.id,
     status: p.status,
-    currentStep: p.currentStep,
+    currentStep: p.current_step,
     progress,
     stageLabel: stage,
     etaSeconds: eta,
@@ -474,7 +378,6 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
   });
 });
 
-// === Генерация поста для соцсетей по готовому проекту ===
 type SocialPlatform = "vk" | "telegram" | "youtube";
 
 interface SocialCaption {
@@ -493,32 +396,19 @@ const HASHTAG_BANK: Record<string, string[]> = {
 
 function pickEmoji(category: string | null): string[] {
   switch (category) {
-    case "marketing":
-      return ["🚀", "💼", "📈", "🔥", "💡"];
+    case "marketing": return ["🚀", "💼", "📈", "🔥", "💡"];
     case "education":
-    case "educational":
-      return ["📚", "🎓", "✏️", "💡", "🧠"];
-    case "content":
-      return ["✨", "🎬", "💭", "🌟", "👀"];
-    case "entertainment":
-      return ["🎉", "🎬", "🍿", "🤩", "🎵"];
-    default:
-      return ["✨", "🎬", "🚀", "💡", "🔥"];
+    case "educational": return ["📚", "🎓", "✏️", "💡", "🧠"];
+    case "content": return ["✨", "🎬", "💭", "🌟", "👀"];
+    case "entertainment": return ["🎉", "🎬", "🍿", "🤩", "🎵"];
+    default: return ["✨", "🎬", "🚀", "💡", "🔥"];
   }
 }
 
 function transliterateForHashtag(s: string): string {
-  // оставляем кириллицу + латиницу + цифры; пробелы = разделитель → CamelCase
-  const cleaned = s
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
-    .trim();
+  const cleaned = s.toLowerCase().replace(/[^\p{L}\p{N}\s-]+/gu, " ").trim();
   if (!cleaned) return "";
-  return cleaned
-    .split(/\s+/)
-    .slice(0, 3)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join("");
+  return cleaned.split(/\s+/).slice(0, 3).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
 }
 
 function buildCaptions(opts: {
@@ -533,8 +423,7 @@ function buildCaptions(opts: {
   const baseTags = HASHTAG_BANK[category ?? "content"] ?? HASHTAG_BANK.content;
   const titleTag = transliterateForHashtag(title);
   const hashtags = [
-    "#нейроклип",
-    "#видео",
+    "#нейроклип", "#видео",
     ...baseTags.slice(0, 4).map((t) => `#${t}`),
     titleTag ? `#${titleTag}` : "",
   ].filter(Boolean);
@@ -542,7 +431,6 @@ function buildCaptions(opts: {
   const shortTopic = topic.slice(0, 180).trim().replace(/\s+/g, " ");
   const longTopic = topic.slice(0, 380).trim().replace(/\s+/g, " ");
 
-  // Человеко-читаемая длительность: «45 секунд», «1 минута», «3 минуты»
   const formatDuration = (s: number): string => {
     if (s < 60) return `${Math.max(1, Math.round(s))} секунд`;
     const mins = Math.round(s / 60);
@@ -554,24 +442,19 @@ function buildCaptions(opts: {
     return `${mins} минут`;
   };
   const durationLabel = formatDuration(durationSec);
-  const ytDurationLabel = durationSec < 60 ? `за ${durationLabel}` : `за ${durationLabel}`;
+  const ytDurationLabel = `за ${durationLabel}`;
 
-  // ВКонтакте — средняя длина, эмодзи, призыв к лайкам
   const vkCaption =
     `${emojis[0]} ${title}\n\n` +
     `${longTopic}${longTopic.length < topic.length ? "…" : ""}\n\n` +
     `${emojis[1]} В видео — ${scenesCount} сцен, длительность ~${durationLabel}.\n` +
     `Смотрите до конца — самое интересное в финале!\n\n` +
     `${emojis[2]} Ставьте лайк, если было полезно, и сохраняйте, чтобы не потерять.`;
-
-  // Telegram — лаконично, абзацами, без перегруза эмодзи
   const tgCaption =
     `${emojis[0]} **${title}**\n\n` +
     `${shortTopic}${shortTopic.length < topic.length ? "…" : ""}\n\n` +
     `Длительность: ${durationLabel} · ${scenesCount} сцен\n\n` +
     `Если зашло — поделитесь с другом ${emojis[3]}`;
-
-  // YouTube Shorts — крючок + ключевые слова
   const ytCaption =
     `${emojis[4]} ${title} — ${ytDurationLabel}!\n\n` +
     `${shortTopic}${shortTopic.length < topic.length ? "…" : ""}\n\n` +
@@ -586,20 +469,17 @@ function buildCaptions(opts: {
 
 router.post("/projects/:id/social-caption", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
-  if (!p) {
-    res.status(404).json({ error: "Проект не найден" });
-    return;
-  }
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
   if (p.status !== "done") {
     res.status(400).json({ error: "Пост можно сгенерировать только для готового видео" });
     return;
   }
-  const scenes = await loadProjectAndScenes(p);
+  const scenes = await loadScenes(p.id);
   const captions = buildCaptions({
     title: p.title,
-    topic: p.topicDescription,
+    topic: p.topic_description,
     category: p.category,
-    durationSec: p.durationSec ?? p.targetDurationSec,
+    durationSec: p.duration_sec ?? p.target_duration_sec,
     scenesCount: scenes.length,
   });
   res.json({ captions });

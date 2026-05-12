@@ -44,8 +44,8 @@ export function parseQuality(input: unknown): RenderQuality {
  * quality multiplier, watermark removal — then a fixed markup on top.
  */
 export function computeProjectCost(
-  project: typeof projectsTable.$inferSelect,
-  scenes: Array<typeof scenesTable.$inferSelect>,
+  project: any,
+  scenes: Array<any>,
   options: CostOptions,
 ): CostBreakdown {
   const lines: CostLine[] = [];
@@ -76,15 +76,15 @@ export function computeProjectCost(
     tokens: animationCost,
   });
 
-  if (project.backgroundMusicId) {
+  if (project.background_music_id) {
     lines.push({
       label: "Фоновая музыка (лицензия)",
-      detail: project.backgroundMusicId,
+      detail: project.background_music_id,
       tokens: 5,
     });
   }
 
-  if (project.addSubtitles) {
+  if (project.add_subtitles) {
     lines.push({
       label: "Субтитры",
       detail: "Распознавание и тайминги",
