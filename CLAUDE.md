@@ -5,8 +5,9 @@
 - **Backend**: `artifacts/api-server` — Express 5, TypeScript, ESM
 - **Frontend**: `artifacts/neuroclip` — Vite, React 18, TanStack Query v5, shadcn/ui
 - **БД**: Supabase self-hosted (`https://superbase.aiinvestor360.ru`)
-- **ORM**: Drizzle убран из runtime → `@supabase/supabase-js` + 5 Postgres RPC функций
-- **Типы схемы**: `lib/db/src/schema/*.ts` (Drizzle-схемы, только для типов)
+- **ORM**: Drizzle убран из runtime → `@supabase/supabase-js` + 6 Postgres RPC функций
+- **Типы**: `lib/db/src/types.ts` — snake_case интерфейсы для всех 14 таблиц (User, Session, Project, Scene и др.)
+- **Drizzle-схемы**: `lib/db/src/schema/*.ts` — только как референс, в runtime не используются
 - **Supabase клиент**: `lib/db/src/sb-client.ts` → `sbFrom()`, `sbRpc()`, `TABLE` map
 - **Миграции**: `scripts/src/apply-migrations.ts` → `/pg/query` endpoint
 
@@ -29,9 +30,10 @@ BASE_PATH=/
 |---|---|
 | `neyroclip_register_user(email, name, password_hash)` | Атомарная регистрация + 200 токенов |
 | `neyroclip_spend_tokens(user_id, amount, ref_id, reason)` | Атомарное списание, проверка баланса |
-| `neyroclip_refund_tokens(user_id, amount, ref_id, reason)` | Возврат токенов |
-| `neyroclip_admin_analytics()` | Все dashboard-метрики одним вызовом |
+| `neyroclip_refund_tokens(user_id, amount, ref_id, reason)` | Возврат токенов с idempotency: повторный вызов с теми же (user_id, ref_id, reason) → ALREADY_REFUNDED |
 | `neyroclip_add_tokens(user_id, delta, reason, ref_id?)` | Admin: добавить токены |
+| `neyroclip_use_promo_code(code, user_id)` | Атомарное применение промокода (FOR UPDATE, per-user idempotency, проверки срока/лимита) |
+| `neyroclip_admin_analytics()` | Все dashboard-метрики одним вызовом |
 
 ## Важные ловушки
 
@@ -105,25 +107,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 - [ ] `routes/script-chat.ts` — 4 ops, большой файл
 
 **Уровень 3** (критичные):
-- [ ] `lib/session.ts` — JOIN sessions+users, на каждый запрос
-- [ ] `routes/auth.ts` — регистрация → RPC neyroclip_register_user
-- [ ] `routes/billing.ts` — atomic balance → RPC neyroclip_add_tokens
-- [ ] `routes/pipeline.ts` — spend/refund → RPC neyroclip_spend/refund_tokens
+- [x] `lib/session.ts` — Session + Pick<User> типы, no any
+- [x] `routes/auth.ts` — sbRpc typed, User cast, EMAIL_TAKEN → 400
+- [x] `routes/billing.ts` — neyroclip_use_promo_code RPC, PROMO_* ошибки → 400
+- [x] `routes/pipeline.ts` — serializeProject из projects.ts, ALREADY_REFUNDED handled
 
 **Уровень 4** (завершение):
 - [ ] `routes/admin.ts` — analytics → RPC neyroclip_admin_analytics
 - [ ] `lib/seed.ts` — upsert plans через /pg/query
-
-## Known tech debt for post-pitch cleanup
-
-1. **[POST-PITCH] neyroclip_refund_tokens idempotency**: добавить проверку
-   уникальности ref_id+reason в SQL функцию — защита от двойного refund при retry.
-
-2. **[POST-PITCH] Promo used_count**: переписать на RPC `neyroclip_increment_promo`
-   с atomic `UPDATE ... WHERE max_uses=0 OR used_count < max_uses`.
-
-3. **[POST-PITCH] Типизация**: заменить `(p as any)` на типизированные интерфейсы —
-   руками в `lib/db/src/types.ts` или через `supabase gen types typescript`.
 
 ## Запуск миграций
 ```bash
