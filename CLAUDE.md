@@ -117,8 +117,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 - [x] `routes/pipeline.ts` — serializeProject из projects.ts, ALREADY_REFUNDED handled
 
 **Уровень 4** (завершение):
-- [ ] `routes/admin.ts` — analytics → RPC neyroclip_admin_analytics
-- [ ] `lib/seed.ts` — upsert plans через /pg/query
+- [x] `routes/admin.ts` — analytics → RPC neyroclip_admin_analytics
+- [x] `lib/seed.ts` — upsert plans через sbFrom
 
 ## Запуск миграций
 ```bash
