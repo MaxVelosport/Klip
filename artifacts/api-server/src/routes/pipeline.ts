@@ -2,10 +2,12 @@ import { Router, type IRouter } from "express";
 import { sbFrom, sbRpc, TABLE, parseImagePrompt, serializeImagePrompt, type Project, type Scene, type RenderJob } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeProject } from "./projects";
-import { SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
+import { SAMPLE_VIDEO_URL } from "../lib/mock-content";
 import { generateScript } from "../lib/script-generator";
 import { getImageProviderWithFallback } from "../lib/images/factory";
 import { saveImage, imageSeedFromProjectId } from "../lib/image-storage";
+import { getTTSWithFallback } from "../lib/tts/factory";
+import { saveAudio } from "../lib/audio-storage";
 import {
   computeProjectCost,
   parseQuality,
@@ -232,9 +234,27 @@ router.post("/projects/:id/generate-audio", requireAuth, async (req: AuthedReque
   if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
 
   const scenes = await loadScenes(p.id);
+  const ttsProvider = getTTSWithFallback((p as Project & { tts_provider?: string }).tts_provider);
+  const voiceId = p.voice_id || "irina";
+  const speed = parseFloat(p.voice_speed) || 1.0;
+
+  let succeeded = 0;
   for (const s of scenes) {
-    await sbFrom(TABLE.scenes).update({ audio_url: SAMPLE_AUDIO_URL }).eq("id", s.id);
+    try {
+      const result = await ttsProvider.synthesize({
+        text: s.narration,
+        voiceId,
+        speed,
+      });
+      const audioUrl = await saveAudio(p.id, s.id, result.buffer, result.mimeType);
+      await sbFrom(TABLE.scenes).update({ audio_url: audioUrl }).eq("id", s.id);
+      succeeded++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[generate-audio] scene ${s.id} failed: ${msg}`);
+    }
   }
+
   await sbFrom(TABLE.projects).update({
     status: "audio_ready",
     current_step: Math.max(p.current_step, 5),
@@ -244,7 +264,7 @@ router.post("/projects/:id/generate-audio", requireAuth, async (req: AuthedReque
     action: "audio_generated",
     entity_type: "project",
     entity_id: p.id,
-    message: `Сгенерирована озвучка`,
+    message: `Сгенерирована озвучка (${succeeded}/${scenes.length} сцен, провайдер: ${ttsProvider.name})`,
   });
   await returnProject(p, res);
 });

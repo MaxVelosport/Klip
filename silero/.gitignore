@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+*.pyc
+# Download: wget https://models.silero.ai/models/tts/ru/v4_ru.pt
+models/

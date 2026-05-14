@@ -26,6 +26,15 @@
   - URL: `https://neuroklip.ru/storage/images/{project_id}/{scene_id}.jpg`
   - Nginx раздаёт с `expires 7d` и `Cache-Control: public, immutable`
   - `image-storage.ts` — `saveImage()`, `imageSeedFromProjectId()`
+- **TTS провайдеры**: `artifacts/api-server/src/lib/tts/` (types, factory, salute-speech, silero, yandex-speechkit, elevenlabs)
+  - Primary: `silero` (локальный Python, бесплатно, ~5-10s/сцена, требует Python venv + модель)
+  - Secondary: `salute-speech` (SberCloud, бесплатно 1M chars/mo, требует `SALUTESPEECH_AUTH_KEY` с SALUTE_SPEECH_PERS scope — отдельный от GigaChat!)
+  - Stubs: `yandex-speechkit`, `elevenlabs`
+  - Выбор через env `TTS_PROVIDER`, fallback через `TTS_FALLBACK`
+  - Silero: venv в `/home/deploy/projects/neuroclip/silero/venv/`, модель `models/v4_ru.pt` (39MB)
+  - Audio storage: `/home/deploy/projects/neuroclip/storage/audio/{project_id}/{scene_id}.mp3`
+  - `audio-storage.ts` — `saveAudio()` → возвращает URL `/storage/audio/...`
+  - nginx: `generate-audio` location с `proxy_read_timeout 120s`
 
 ## Переменные окружения (`.env` в корне)
 ```

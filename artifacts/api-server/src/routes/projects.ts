@@ -31,7 +31,8 @@ export function serializeProject(p: Project, scenes: Scene[] = []) {
     finalVideoUrl: p.final_video_url,
     thumbnailUrl: p.thumbnail_url,
     errorMessage: p.error_message,
-    imageProvider: p.image_provider ?? "nano-banana-flash",
+    imageProvider: p.image_provider ?? "kandinsky-gigachat",
+    ttsProvider: (p as Project & { tts_provider?: string }).tts_provider ?? "salute-speech",
     scenes: scenes.map(serializeScene),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
@@ -111,6 +112,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     category,
     aspectRatio,
     imageProvider,
+    ttsProvider,
   } = req.body ?? {};
   if (!title || !topicDescription || !targetDurationSec || !visualStyle || !voiceId) {
     res.status(400).json({ error: "Заполните все обязательные поля проекта" });
@@ -126,7 +128,11 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell"]);
   const imgProvider = typeof imageProvider === "string" && ALLOWED_PROVIDERS.has(imageProvider)
     ? imageProvider
-    : (process.env.IMAGE_PROVIDER ?? "nano-banana-flash");
+    : (process.env.IMAGE_PROVIDER ?? "kandinsky-gigachat");
+  const ALLOWED_TTS = new Set(["salute-speech", "silero", "yandex-speechkit", "elevenlabs"]);
+  const ttsProv = typeof ttsProvider === "string" && ALLOWED_TTS.has(ttsProvider)
+    ? ttsProvider
+    : (process.env.TTS_PROVIDER ?? "salute-speech");
 
   const { data: created, error } = await sbFrom(TABLE.projects).insert({
     user_id: req.userId!,
@@ -140,6 +146,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     add_subtitles: Boolean(addSubtitles),
     aspect_ratio: ratio,
     image_provider: imgProvider,
+    tts_provider: ttsProv,
     status: "draft",
     current_step: 1,
   }).select().single();
