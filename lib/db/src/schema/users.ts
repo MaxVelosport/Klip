@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core";
 
-export const usersTable = pgTable("users", {
+export const usersTable = pgTable("Neyroclip_users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash"),

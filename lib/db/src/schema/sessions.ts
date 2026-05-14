@@ -1,6 +1,6 @@
 import { pgTable, text, uuid, timestamp } from "drizzle-orm/pg-core";
 
-export const sessionsTable = pgTable("sessions", {
+export const sessionsTable = pgTable("Neyroclip_sessions", {
   id: text("id").primaryKey(),
   userId: uuid("user_id").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

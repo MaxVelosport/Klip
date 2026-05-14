@@ -1,5 +1,8 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, TABLE } from "@workspace/db";
+import {
+  sbFrom, TABLE,
+  type User, type Project, type AuditLog, type Plan, type TokenBalance,
+} from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
@@ -32,17 +35,18 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthedRequest, res) =>
   if (activityRes.error) throw new Error(activityRes.error.message);
   if (userRes.error) throw new Error(userRes.error.message);
 
-  const u = userRes.data;
+  const u = userRes.data as User | null;
   if (!u) { res.status(401).json({ error: "Сессия недействительна" }); return; }
 
   const [planRes, balRes] = await Promise.all([
     sbFrom(TABLE.plans).select("*").eq("id", u.plan_id).maybeSingle(),
     sbFrom(TABLE.tokenBalances).select("*").eq("user_id", userId).maybeSingle(),
   ]);
-  const plan = planRes.data;
-  const bal = balRes.data;
+  const plan = planRes.data as Plan | null;
+  const bal = balRes.data as TokenBalance | null;
 
-  const statsRows = statsRes.data ?? [];
+  type StatRow = Pick<Project, "status" | "duration_sec" | "updated_at">;
+  const statsRows = (statsRes.data ?? []) as StatRow[];
   const breakdown = new Map<string, number>();
   let totalDurationSec = 0;
   let videosThisMonth = 0;
@@ -58,8 +62,8 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthedRequest, res) =>
     (breakdown.get("images_ready") ?? 0) +
     (breakdown.get("audio_ready") ?? 0);
 
-  const recent = recentRes.data ?? [];
-  const activity = activityRes.data ?? [];
+  const recent = (recentRes.data ?? []) as Project[];
+  const activity = (activityRes.data ?? []) as AuditLog[];
 
   res.json({
     totalProjects: statsRows.length,
@@ -87,7 +91,7 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthedRequest, res) =>
       id: String(a.id),
       action: a.action,
       entityType: a.entity_type,
-      entityId: a.entity_id,
+      entityId: a.entity_id ?? null,
       message: a.message,
       createdAt: a.created_at,
     })),

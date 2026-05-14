@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type User, type Plan, type TokenBalance, type BrandKit } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { buildCurrentUser } from "./users-helpers";
 
@@ -57,8 +57,9 @@ router.patch("/me", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 router.get("/me/usage", requireAuth, async (req: AuthedRequest, res) => {
-  const { data: u, error: uErr } = await sbFrom(TABLE.users).select("*").eq("id", req.userId!).maybeSingle();
+  const { data: rawU, error: uErr } = await sbFrom(TABLE.users).select("*").eq("id", req.userId!).maybeSingle();
   if (uErr) throw new Error(uErr.message);
+  const u = rawU as User | null;
   if (!u) {
     res.status(401).json({ error: "Сессия недействительна" });
     return;
@@ -67,8 +68,8 @@ router.get("/me/usage", requireAuth, async (req: AuthedRequest, res) => {
     sbFrom(TABLE.plans).select("*").eq("id", u.plan_id).maybeSingle(),
     sbFrom(TABLE.tokenBalances).select("*").eq("user_id", u.id).maybeSingle(),
   ]);
-  const plan = planRes.data;
-  const bal = balRes.data;
+  const plan = planRes.data as Plan | null;
+  const bal = balRes.data as TokenBalance | null;
   res.json({
     planId: u.plan_id,
     planName: plan?.name ?? u.plan_id,
@@ -82,8 +83,9 @@ router.get("/me/usage", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 router.get("/me/brand-kit", requireAuth, async (req: AuthedRequest, res) => {
-  const { data: row, error } = await sbFrom(TABLE.brandKits).select("*").eq("user_id", req.userId!).maybeSingle();
+  const { data: rawRow, error } = await sbFrom(TABLE.brandKits).select("*").eq("user_id", req.userId!).maybeSingle();
   if (error) throw new Error(error.message);
+  const row = rawRow as BrandKit | null;
   res.json(serializeBrandKit(row ?? defaultBrandKit(req.userId!)));
 });
 
@@ -116,7 +118,7 @@ router.put("/me/brand-kit", requireAuth, async (req: AuthedRequest, res) => {
     .maybeSingle();
   if (existErr) throw new Error(existErr.message);
 
-  let row: any;
+  let row: BrandKit;
   if (existing) {
     const update: Record<string, unknown> = {};
     if (b.brandName !== undefined) update.brand_name = trimStr(b.brandName, 60);
@@ -130,11 +132,11 @@ router.put("/me/brand-kit", requireAuth, async (req: AuthedRequest, res) => {
     if (Object.keys(update).length > 0) {
       const { data, error } = await sbFrom(TABLE.brandKits).update(update).eq("user_id", req.userId!).select().single();
       if (error) throw new Error(error.message);
-      row = data;
+      row = data as BrandKit;
     } else {
       const { data, error } = await sbFrom(TABLE.brandKits).select("*").eq("user_id", req.userId!).single();
       if (error) throw new Error(error.message);
-      row = data;
+      row = data as BrandKit;
     }
   } else {
     const { data, error } = await sbFrom(TABLE.brandKits).insert({
@@ -148,7 +150,7 @@ router.put("/me/brand-kit", requireAuth, async (req: AuthedRequest, res) => {
       tagline: b.tagline !== undefined ? trimStr(b.tagline, 120) : "",
     }).select().single();
     if (error) throw new Error(error.message);
-    row = data;
+    row = data as BrandKit;
   }
 
   res.json(serializeBrandKit(row));

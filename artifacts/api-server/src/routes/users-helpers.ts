@@ -1,16 +1,17 @@
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type User, type Plan, type TokenBalance } from "@workspace/db";
 
 export async function buildCurrentUser(userId: string) {
-  const { data: u, error: uErr } = await sbFrom(TABLE.users).select("*").eq("id", userId).maybeSingle();
+  const { data: raw, error: uErr } = await sbFrom(TABLE.users).select("*").eq("id", userId).maybeSingle();
   if (uErr) throw new Error(uErr.message);
+  const u = raw as User | null;
   if (!u) return null;
 
   const [planRes, balRes] = await Promise.all([
     sbFrom(TABLE.plans).select("*").eq("id", u.plan_id).maybeSingle(),
     sbFrom(TABLE.tokenBalances).select("*").eq("user_id", u.id).maybeSingle(),
   ]);
-  const plan = planRes.data;
-  const bal = balRes.data;
+  const plan = planRes.data as Plan | null;
+  const bal = balRes.data as TokenBalance | null;
 
   return {
     id: u.id,

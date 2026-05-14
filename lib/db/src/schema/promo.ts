@@ -6,7 +6,7 @@ import {
   boolean,
 } from "drizzle-orm/pg-core";
 
-export const promoCodesTable = pgTable("promo_codes", {
+export const promoCodesTable = pgTable("Neyroclip_promo_codes", {
   code: text("code").primaryKey(),
   discountType: text("discount_type").notNull().default("tokens"),
   discountValue: integer("discount_value").notNull().default(0),

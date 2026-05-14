@@ -187,9 +187,6 @@ importers:
       docx:
         specifier: ^9.6.1
         version: 9.6.1
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 0.45.2(@types/pg@8.18.0)(pg@8.20.0)
       express:
         specifier: ^5
         version: 5.2.1

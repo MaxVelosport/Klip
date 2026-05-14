@@ -1,6 +1,6 @@
 import { pgTable, text, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 
-export const plansTable = pgTable("plans", {
+export const plansTable = pgTable("Neyroclip_plans", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   tagline: text("tagline").notNull().default(""),

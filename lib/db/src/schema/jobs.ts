@@ -6,7 +6,7 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-export const renderJobsTable = pgTable("render_jobs", {
+export const renderJobsTable = pgTable("Neyroclip_render_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull(),
   jobType: text("job_type").notNull(),

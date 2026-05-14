@@ -25,15 +25,19 @@ BASE_PATH=/
 ## Префиксы таблиц
 Все 14 таблиц: `Neyroclip_*` (с заглавной N, shared БД с другими проектами)
 
-## Postgres RPC функции (в public схеме)
+## RPC функции (6)
+
+Все функции: `SECURITY DEFINER SET search_path = public` + `GRANT EXECUTE TO anon, authenticated, service_role`.
+После `CREATE OR REPLACE` всегда: `NOTIFY pgrst, 'reload schema';`
+
 | Функция | Назначение |
 |---|---|
-| `neyroclip_register_user(email, name, password_hash)` | Атомарная регистрация + 200 токенов |
-| `neyroclip_spend_tokens(user_id, amount, ref_id, reason)` | Атомарное списание, проверка баланса |
-| `neyroclip_refund_tokens(user_id, amount, ref_id, reason)` | Возврат токенов с idempotency: повторный вызов с теми же (user_id, ref_id, reason) → ALREADY_REFUNDED |
-| `neyroclip_add_tokens(user_id, delta, reason, ref_id?)` | Admin: добавить токены |
-| `neyroclip_use_promo_code(code, user_id)` | Атомарное применение промокода (FOR UPDATE, per-user idempotency, проверки срока/лимита) |
-| `neyroclip_admin_analytics()` | Все dashboard-метрики одним вызовом |
+| `neyroclip_register_user(email, name, password_hash)` | Атомарная регистрация + 200 токенов на баланс. Ошибка: `EMAIL_TAKEN` |
+| `neyroclip_spend_tokens(user_id, amount, ref_id, reason)` | Атомарное списание с проверкой баланса. Ошибки: `INSUFFICIENT_TOKENS`, `INVALID_AMOUNT` |
+| `neyroclip_refund_tokens(user_id, amount, ref_id, reason)` | Возврат токенов с idempotency по `(user_id, ref_id, reason)`. Ошибки: `ALREADY_REFUNDED`, `USER_NOT_FOUND` |
+| `neyroclip_add_tokens(user_id, delta, reason, ref_id?)` | Admin/billing: начислить произвольное кол-во токенов. Ошибка: `USER_NOT_FOUND` |
+| `neyroclip_use_promo_code(code, user_id)` | Атомарное применение промокода: `FOR UPDATE` lock, per-user idempotency, проверки срока/лимита. Ошибки: `PROMO_NOT_FOUND`, `PROMO_EXPIRED`, `PROMO_LIMIT_REACHED`, `PROMO_ALREADY_USED`, `PROMO_NOT_STARTED` |
+| `neyroclip_admin_analytics()` | Все dashboard-метрики одним вызовом (users, projects, revenue, MAU/DAU, conversion) |
 
 ## Важные ловушки
 

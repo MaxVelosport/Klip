@@ -9,7 +9,7 @@ import {
   numeric,
 } from "drizzle-orm/pg-core";
 
-export const projectsTable = pgTable("projects", {
+export const projectsTable = pgTable("Neyroclip_projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   title: text("title").notNull(),

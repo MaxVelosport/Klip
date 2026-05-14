@@ -7,7 +7,7 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-export const scenesTable = pgTable("scenes", {
+export const scenesTable = pgTable("Neyroclip_scenes", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull(),
   orderIndex: smallint("order_index").notNull().default(0),

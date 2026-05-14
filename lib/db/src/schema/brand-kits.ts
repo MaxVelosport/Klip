@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
 
-export const brandKitsTable = pgTable("brand_kits", {
+export const brandKitsTable = pgTable("Neyroclip_brand_kits", {
   userId: uuid("user_id").primaryKey(),
   brandName: text("brand_name").notNull().default(""),
   logoUrl: text("logo_url"),

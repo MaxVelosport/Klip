@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
-export const subscriptionsTable = pgTable("subscriptions", {
+export const subscriptionsTable = pgTable("Neyroclip_subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   planId: text("plan_id").notNull(),

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, sbRpc, TABLE } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, type User, type RenderJob } from "@workspace/db";
 import { requireAuth, requireAdmin, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
@@ -13,12 +13,12 @@ router.get("/admin/users", requireAuth, requireAdmin, async (_req: AuthedRequest
 
   const { data: projRows } = await sbFrom(TABLE.projects).select("user_id").is("deleted_at", null);
   const cmap = new Map<string, number>();
-  for (const row of projRows ?? []) {
-    cmap.set((row as any).user_id, (cmap.get((row as any).user_id) ?? 0) + 1);
+  for (const row of (projRows ?? []) as Array<{ user_id: string }>) {
+    cmap.set(row.user_id, (cmap.get(row.user_id) ?? 0) + 1);
   }
 
   res.json(
-    (users ?? []).map((u: any) => ({
+    ((users ?? []) as User[]).map((u) => ({
       id: u.id,
       email: u.email,
       name: u.name,
@@ -39,20 +39,24 @@ router.get("/admin/jobs", requireAuth, requireAdmin, async (_req, res) => {
   if (jobsErr) throw new Error(jobsErr.message);
   if (!jobs?.length) { res.json([]); return; }
 
-  const projectIds = [...new Set((jobs as any[]).map((j) => j.project_id).filter(Boolean))];
+  type ProjectStub = { id: string; title: string; user_id: string };
+  type UserStub = { id: string; email: string };
+
+  const jobList = jobs as RenderJob[];
+  const projectIds = [...new Set(jobList.map((j) => j.project_id).filter(Boolean))];
   const { data: projects } = await sbFrom(TABLE.projects)
     .select("id, title, user_id")
     .in("id", projectIds);
-  const projectMap = new Map((projects ?? []).map((p: any) => [p.id, p]));
+  const projectMap = new Map(((projects ?? []) as ProjectStub[]).map((p) => [p.id, p]));
 
-  const userIds = [...new Set((projects ?? []).map((p: any) => p.user_id).filter(Boolean))];
+  const userIds = [...new Set(((projects ?? []) as ProjectStub[]).map((p) => p.user_id).filter(Boolean))];
   const { data: users } = userIds.length
     ? await sbFrom(TABLE.users).select("id, email").in("id", userIds)
     : { data: [] };
-  const userMap = new Map((users ?? []).map((u: any) => [u.id, u]));
+  const userMap = new Map(((users ?? []) as UserStub[]).map((u) => [u.id, u]));
 
   res.json(
-    (jobs as any[]).map((r) => {
+    jobList.map((r) => {
       const project = projectMap.get(r.project_id);
       const user = project ? userMap.get(project.user_id) : null;
       return {
@@ -80,10 +84,11 @@ router.post("/admin/jobs/:jobId/retry", requireAuth, requireAdmin, async (req, r
     .maybeSingle();
   if (fetchErr) throw new Error(fetchErr.message);
 
+  const retryCount = (current as { retry_count: number } | null)?.retry_count ?? 0;
   const { error: updErr } = await sbFrom(TABLE.renderJobs).update({
     status: "running",
     progress: 5,
-    retry_count: ((current as any)?.retry_count ?? 0) + 1,
+    retry_count: retryCount + 1,
     started_at: new Date().toISOString(),
     finished_at: null,
     error_message: null,
@@ -91,7 +96,7 @@ router.post("/admin/jobs/:jobId/retry", requireAuth, requireAdmin, async (req, r
   if (updErr) throw new Error(updErr.message);
 
   const { data: j } = await sbFrom(TABLE.renderJobs).select("*").eq("id", jobId).single();
-  const job = j as any;
+  const job = j as RenderJob;
   res.json({
     id: job.id,
     projectId: job.project_id,
@@ -107,10 +112,22 @@ router.post("/admin/jobs/:jobId/retry", requireAuth, requireAdmin, async (req, r
   });
 });
 
+interface AdminAnalytics {
+  total_users: number;
+  total_projects: number;
+  total_revenue_rub: number;
+  mau: number;
+  dau: number;
+  free_to_paid_conversion: number;
+  avg_cheque_rub: number;
+  revenue_by_month: Array<{ month: string; revenue: number }>;
+  users_by_plan: Array<{ plan_id: string; plan_name: string; count: number }>;
+}
+
 router.get("/admin/analytics", requireAuth, requireAdmin, async (_req, res) => {
-  const { data, error } = await sbRpc("neyroclip_admin_analytics");
+  const { data, error } = await sbRpc<AdminAnalytics>("neyroclip_admin_analytics");
   if (error) throw new Error(error.message);
-  const d = data as any;
+  const d = data!;
   res.json({
     totalUsers: d.total_users,
     totalProjects: d.total_projects,
@@ -119,11 +136,11 @@ router.get("/admin/analytics", requireAuth, requireAdmin, async (_req, res) => {
     dau: d.dau,
     freeToPaidConversion: Number(d.free_to_paid_conversion ?? 0),
     avgChequeRub: Number(d.avg_cheque_rub ?? 0),
-    revenueByMonth: (d.revenue_by_month ?? []).map((r: any) => ({
+    revenueByMonth: (d.revenue_by_month ?? []).map((r) => ({
       month: r.month,
       revenue: Number(r.revenue),
     })),
-    usersByPlan: (d.users_by_plan ?? []).map((u: any) => ({
+    usersByPlan: (d.users_by_plan ?? []).map((u) => ({
       planId: u.plan_id,
       planName: u.plan_name ?? u.plan_id,
       count: u.count,

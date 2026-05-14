@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, TABLE } from "@workspace/db";
+import { sbFrom, TABLE, type Plan } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -8,7 +8,7 @@ router.get("/plans", async (_req, res) => {
     .select("*")
     .order("price_month_rub", { ascending: true });
   if (error) throw new Error(error.message);
-  res.json(data ?? []);
+  res.json((data ?? []) as Plan[]);
 });
 
 export default router;

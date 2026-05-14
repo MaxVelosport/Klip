@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
 
-export const scriptMessagesTable = pgTable("script_messages", {
+export const scriptMessagesTable = pgTable("Neyroclip_script_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull(),
   userId: uuid("user_id").notNull(),

@@ -1,6 +1,6 @@
 import { pgTable, bigserial, uuid, text, jsonb, timestamp } from "drizzle-orm/pg-core";
 
-export const auditLogTable = pgTable("audit_log", {
+export const auditLogTable = pgTable("Neyroclip_audit_log", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: uuid("user_id"),
   action: text("action").notNull(),
