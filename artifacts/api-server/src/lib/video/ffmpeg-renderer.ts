@@ -6,7 +6,7 @@ import type { RenderParams, RenderProgress, VideoRenderer } from "./types.js";
 import { RenderError, RESOLUTION, FPS, VIDEO_BITRATE } from "./types.js";
 import { kenBurnsFilterChain, randomEffect } from "./ken-burns.js";
 import { buildConcatFilter, randomTransition, TRANSITION_DURATION } from "./transitions.js";
-import { generateSRT } from "./subtitles.js";
+import { generateSRT, SUBTITLE_STYLE } from "./subtitles.js";
 
 const FFMPEG = "ffmpeg";
 const FFPROBE = "ffprobe";
@@ -98,7 +98,7 @@ export class FFmpegRenderer implements VideoRenderer {
 
         const clipPath = join(tmpDir, `clip-${i}.mp4`);
         const effect = randomEffect(i);
-        const kbFilter = kenBurnsFilterChain(durationSec, outW, outH, effect);
+        const kbFilter = kenBurnsFilterChain(durationSec, outW, outH, effect, i * 3 + 1);
 
         await runFFmpeg([
           "-loop", "1",
@@ -189,9 +189,7 @@ export class FFmpegRenderer implements VideoRenderer {
         const escapedSrt = srtPath.replace(/:/g, "\\:");
         await runFFmpeg([
           "-i", currentInput,
-          "-vf", [
-            `subtitles=${escapedSrt}:force_style='Fontsize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=3,Outline=2,Shadow=1,Alignment=2'`,
-          ].join(","),
+          "-vf", `subtitles=${escapedSrt}:force_style='${SUBTITLE_STYLE}'`,
           "-c:v", "libx264",
           "-preset", "fast",
           "-b:v", VIDEO_BITRATE,

@@ -189,6 +189,11 @@ router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequ
 
   const results: Array<PromiseFulfilledResult<{ sceneId: string; url: string }> | PromiseRejectedResult> = [];
   for (const s of scenes) {
+    // Skip scenes that already have an image (allows retrying failed ones only)
+    if (s.image_url) {
+      results.push({ status: "fulfilled", value: { sceneId: s.id, url: s.image_url } });
+      continue;
+    }
     try {
       const prompt = parseImagePrompt(s.image_prompt);
       const result = await provider.generate({
@@ -354,13 +359,16 @@ async function startRenderJob(opts: {
 
       // Build scene asset list — convert storage URLs to absolute FS paths
       const STORAGE_ROOT = "/home/deploy/projects/neuroclip/storage";
+      // Strip leading https://host and /storage prefix to get a relative sub-path
+      const toFsPath = (url: string) =>
+        STORAGE_ROOT + url.replace(/^(https?:\/\/[^/]+)?\/storage/, "");
       const sceneAssets: SceneAsset[] = renderScenes
         .filter(s => s.image_url && s.audio_url)
         .map(s => ({
           id: s.id,
           orderIndex: s.order_index,
-          imageUrl: STORAGE_ROOT + s.image_url!.replace("https://neuroklip.ru", "").replace(/^\/storage/, "/storage"),
-          audioUrl: STORAGE_ROOT + s.audio_url!.replace("https://neuroklip.ru", "").replace(/^\/storage/, "/storage"),
+          imageUrl: toFsPath(s.image_url!),
+          audioUrl: toFsPath(s.audio_url!),
           durationSec: Number(s.duration_sec) || 7,
           narration: s.narration,
         }));

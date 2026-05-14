@@ -1,5 +1,18 @@
 import type { SceneAsset } from "./types.js";
 
+export const SUBTITLE_STYLE = [
+  "Fontname=DejaVu Sans Bold",
+  "Fontsize=42",
+  "PrimaryColour=&H00FFFFFF",
+  "OutlineColour=&H00000000",
+  "BorderStyle=1",
+  "Outline=3",
+  "Shadow=1",
+  "Bold=1",
+  "Alignment=2",
+  "MarginV=120",
+].join(",");
+
 function padMs(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const millis = ms % 1000;
@@ -13,7 +26,7 @@ function padMs(ms: number): string {
   ].join(":") + "," + String(millis).padStart(3, "0");
 }
 
-function wrapText(text: string, maxChars = 42): string[] {
+function wrapText(text: string, maxChars = 30): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let current = "";
@@ -29,28 +42,33 @@ function wrapText(text: string, maxChars = 42): string[] {
   return lines;
 }
 
-export function generateSRT(scenes: SceneAsset[], wrapChars = 42): string {
+function cleanText(text: string): string {
+  return text.trim().replace(/\.+$/, "");
+}
+
+export function generateSRT(scenes: SceneAsset[], wrapChars = 30): string {
   let srt = "";
   let cumulativeMs = 0;
   let idx = 1;
 
   for (const scene of scenes) {
     const durationMs = Math.round(scene.durationSec * 1000);
-    const lines = wrapText(scene.narration.trim(), wrapChars);
-    const MAX_LINES_PER_BLOCK = 40; // chars per line × 2 lines is typical for subtitles
+    const text = cleanText(scene.narration);
+    const lines = wrapText(text, wrapChars);
 
-    // Split long narrations into sub-blocks
+    // Group into 2-line blocks; add a 100ms gap between sub-blocks for readability
+    const GAP_MS = 100;
     const blockCount = Math.max(1, Math.ceil(lines.length / 2));
-    const msPerBlock = Math.floor(durationMs / blockCount);
+    const msPerBlock = Math.floor((durationMs - GAP_MS * (blockCount - 1)) / blockCount);
 
     let blockStart = cumulativeMs;
     for (let b = 0; b < blockCount; b++) {
       const blockLines = lines.slice(b * 2, b * 2 + 2).join("\n");
-      const blockEnd = b < blockCount - 1 ? blockStart + msPerBlock : cumulativeMs + durationMs;
+      const blockEnd = blockStart + msPerBlock;
       srt += `${idx}\n`;
-      srt += `${padMs(blockStart)} --> ${padMs(blockEnd)}\n`;
+      srt += `${padMs(blockStart)} --> ${padMs(Math.min(blockEnd, cumulativeMs + durationMs))}\n`;
       srt += `${blockLines}\n\n`;
-      blockStart = blockEnd;
+      blockStart = blockEnd + GAP_MS;
       idx++;
     }
 
