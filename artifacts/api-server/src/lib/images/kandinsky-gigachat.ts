@@ -32,6 +32,9 @@ async function fetchFreshToken(): Promise<string> {
     body: "scope=GIGACHAT_API_PERS",
   } as RequestInit);
 
+  if (res.status === 429) {
+    throw new ImageError("kandinsky", "AUTH_429", `OAuth rate limited`);
+  }
   if (!res.ok) {
     const text = await (res as Response).text().catch(() => "");
     throw new ImageError("kandinsky", `AUTH_${res.status}`, `Ошибка авторизации: ${text.slice(0, 200)}`);
@@ -61,8 +64,10 @@ interface GCChatResponse {
   message?: string;
 }
 
-async function chatWithRetry(token: string, body: object, maxAttempts = 3): Promise<string> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000, 40_000];
+
+async function chatWithRetry(token: string, body: object): Promise<string> {
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const res = await sberFetch("https://gigachat.devices.sberbank.ru/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -72,9 +77,10 @@ async function chatWithRetry(token: string, body: object, maxAttempts = 3): Prom
       body: JSON.stringify(body),
     } as RequestInit);
 
-    if (res.status === 429 && attempt < maxAttempts) {
-      await sleep(attempt * 2000);
-      // Refresh token on retry — it might have expired under heavy load
+    if (res.status === 429) {
+      const delay = RETRY_DELAYS_MS[attempt]!;
+      console.warn(`[kandinsky] rate limited, retry ${attempt + 1}/${RETRY_DELAYS_MS.length} in ${delay}ms`);
+      await sleep(delay);
       token = await getToken();
       continue;
     }
@@ -87,7 +93,7 @@ async function chatWithRetry(token: string, body: object, maxAttempts = 3): Prom
     const data = (await (res as Response).json()) as GCChatResponse;
     return data.choices?.[0]?.message?.content ?? "";
   }
-  throw new ImageError("kandinsky", "CHAT_RATE_LIMIT", "GigaChat rate limit exceeded after retries");
+  throw new ImageError("kandinsky", "RATE_LIMIT_EXHAUSTED", "Все 5 попыток исчерпаны (GigaChat rate limit)");
 }
 
 export class KandinskyGigaChatProvider implements ImageProvider {

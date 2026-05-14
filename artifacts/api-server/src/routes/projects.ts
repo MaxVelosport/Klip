@@ -125,7 +125,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const cat = typeof category === "string" && ALLOWED_CATEGORIES.has(category) ? category : "educational";
   const ALLOWED_RATIOS = new Set(["16:9", "9:16", "1:1"]);
   const ratio = typeof aspectRatio === "string" && ALLOWED_RATIOS.has(aspectRatio) ? aspectRatio : "16:9";
-  const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell"]);
+  const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell", "pixabay"]);
   const imgProvider = typeof imageProvider === "string" && ALLOWED_PROVIDERS.has(imageProvider)
     ? imageProvider
     : (process.env.IMAGE_PROVIDER ?? "kandinsky-gigachat");

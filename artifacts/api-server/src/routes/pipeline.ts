@@ -185,7 +185,7 @@ router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequ
 
   // GigaChat has strict rate limits — process sequentially with small delay
   const isKandinsky = provider.name.includes("kandinsky");
-  const INTER_SCENE_DELAY_MS = isKandinsky ? 2000 : 0;
+  const INTER_SCENE_DELAY_MS = isKandinsky ? 3000 : 0;
 
   const results: Array<PromiseFulfilledResult<{ sceneId: string; url: string }> | PromiseRejectedResult> = [];
   for (const s of scenes) {

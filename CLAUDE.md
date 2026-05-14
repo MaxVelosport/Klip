@@ -238,3 +238,14 @@ On Linux: `subtitles=\/home\/...\/subs.srt` or escape colons: `subtitles=/path/t
 ### 23. torchaudio 2.11+ requires torchcodec for save()
 `torchaudio.save()` in 2.11+ tries torchcodec first, throws ImportError if missing.
 Fix: use `scipy.io.wavfile.write(path, sample_rate, audio.numpy())` instead.
+
+### 24. Pixabay API — Cloudflare блокирует датацентровые IP
+Pixabay за Cloudflare. Node.js fetch и undici с датацентрового IP дают 403 "Just a moment...".
+curl работает потому что системный HTTPS_PROXY в env перенаправляет через прокси.
+Решение: использовать undici ProxyAgent(process.env.HTTPS_PROXY) для Pixabay запросов.
+Аналогичная проблема может быть у других CDN/Cloudflare сайтов.
+
+### 25. GigaChat rate limit — exponential backoff обязателен
+429 ошибки случаются после 4-5 последовательных запросов даже с 2s задержкой.
+Решение: RETRY_DELAYS_MS = [2000, 5000, 10000, 20000, 40000] — 5 попыток с ростом задержки.
+Между сценами: 3s (было 2s). Fallback: kandinsky → pixabay (через proxy).
