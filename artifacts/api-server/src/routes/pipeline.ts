@@ -2,12 +2,13 @@ import { Router, type IRouter } from "express";
 import { sbFrom, sbRpc, TABLE, parseImagePrompt, serializeImagePrompt, type Project, type Scene, type RenderJob } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeProject } from "./projects";
-import { SAMPLE_VIDEO_URL } from "../lib/mock-content";
 import { generateScript } from "../lib/script-generator";
 import { getImageProviderWithFallback } from "../lib/images/factory";
 import { saveImage, imageSeedFromProjectId } from "../lib/image-storage";
 import { getTTSWithFallback } from "../lib/tts/factory";
 import { saveAudio } from "../lib/audio-storage";
+import { getVideoRenderer } from "../lib/video/factory";
+import type { SceneAsset } from "../lib/video/types";
 import {
   computeProjectCost,
   parseQuality,
@@ -342,12 +343,55 @@ async function startRenderJob(opts: {
 
   const jobId = createdJob.id;
   const userId = req.userId!;
+  const renderScenes = scenes;
 
-  setTimeout(async () => {
+  // Fire-and-forget real render — does not block the HTTP response
+  (async () => {
     try {
       const { data: latest } = await sbFrom(TABLE.projects).select("*").eq("id", p.id).maybeSingle();
       const latestProject = latest as Project | null;
       if (!latestProject || latestProject.deleted_at) return;
+
+      // Build scene asset list — convert storage URLs to absolute FS paths
+      const STORAGE_ROOT = "/home/deploy/projects/neuroclip/storage";
+      const sceneAssets: SceneAsset[] = renderScenes
+        .filter(s => s.image_url && s.audio_url)
+        .map(s => ({
+          id: s.id,
+          orderIndex: s.order_index,
+          imageUrl: STORAGE_ROOT + s.image_url!.replace("https://neuroklip.ru", "").replace(/^\/storage/, "/storage"),
+          audioUrl: STORAGE_ROOT + s.audio_url!.replace("https://neuroklip.ru", "").replace(/^\/storage/, "/storage"),
+          durationSec: Number(s.duration_sec) || 7,
+          narration: s.narration,
+        }));
+
+      if (sceneAssets.length === 0) {
+        throw new Error("Нет сцен с изображениями и аудио для рендера");
+      }
+
+      const outputPath = `/home/deploy/projects/neuroclip/storage/videos/${p.id}.mp4`;
+      const renderer = getVideoRenderer();
+
+      await renderer.render(
+        {
+          projectId: p.id,
+          scenes: sceneAssets,
+          aspectRatio: (latestProject.aspect_ratio as "16:9" | "9:16" | "1:1") ?? "16:9",
+          addSubtitles: latestProject.add_subtitles ?? false,
+          outputPath,
+        },
+        async (prog) => {
+          const pct = Math.min(95,
+            prog.stage === "rendering_scenes" ? Math.round(10 + 60 * prog.scenesCompleted / Math.max(prog.scenesTotal, 1)) :
+            prog.stage === "concatenating" ? 75 :
+            prog.stage === "adding_subtitles" ? 88 :
+            95,
+          );
+          await sbFrom(TABLE.renderJobs).update({ progress: pct, status: "running" }).eq("id", jobId).catch(() => null);
+        },
+      );
+
+      const videoUrl = `/storage/videos/${p.id}.mp4`;
       await sbFrom(TABLE.renderJobs).update({
         status: "succeeded",
         progress: 100,
@@ -355,7 +399,7 @@ async function startRenderJob(opts: {
       }).eq("id", jobId);
       await sbFrom(TABLE.projects).update({
         status: "done",
-        final_video_url: SAMPLE_VIDEO_URL,
+        final_video_url: videoUrl,
         current_step: 6,
       }).eq("id", p.id);
       await sbFrom(TABLE.auditLog).insert({
@@ -367,10 +411,12 @@ async function startRenderJob(opts: {
       });
     } catch (err) {
       try {
+        const errMsg = err instanceof Error ? err.message : "render failed";
+        console.error(`[render] project ${p.id} failed:`, errMsg);
         await sbFrom(TABLE.renderJobs).update({
           status: "failed",
           finished_at: new Date().toISOString(),
-          error_message: err instanceof Error ? err.message : "render failed",
+          error_message: errMsg.slice(0, 500),
         }).eq("id", jobId);
         await sbFrom(TABLE.projects).update({
           status: "failed",
@@ -386,7 +432,7 @@ async function startRenderJob(opts: {
         /* nothing else we can do */
       }
     }
-  }, 6000);
+  })();
 
   await returnProject(p, res);
 }
@@ -422,12 +468,16 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
     progress = 100;
     stage = "Готово";
   } else if (p.status === "rendering" && j) {
-    const elapsed = (Date.now() - (j.started_at ? new Date(j.started_at).getTime() : Date.now())) / 1000;
-    progress = Math.min(95, Math.floor((elapsed / 6) * 100));
-    stage = progress < 30 ? "Сборка кадров" : progress < 70 ? "Микширование звука" : "Финализация MP4";
-    eta = Math.max(0, 6 - Math.floor(elapsed));
+    progress = j.progress ?? 5;
+    const elapsed = j.started_at ? (Date.now() - new Date(j.started_at).getTime()) / 1000 : 0;
+    stage = progress < 30 ? "Сборка сцен" : progress < 80 ? "Склейка видео" : "Добавление субтитров";
+    // Rough ETA based on typical ~120s total
+    eta = Math.max(0, Math.round(120 * (1 - progress / 100) - elapsed * 0.5));
   } else if (p.status === "audio_ready") {
     stage = "Готов к рендеру";
+  } else if (p.status === "failed") {
+    stage = "Ошибка рендера";
+    progress = 0;
   } else {
     stage = "В очереди";
     progress = 5;
@@ -440,6 +490,7 @@ router.get("/projects/:id/progress", requireAuth, async (req: AuthedRequest, res
     stageLabel: stage,
     etaSeconds: eta,
     queuePosition: 0,
+    errorMessage: j?.error_message ?? null,
   });
 });
 
