@@ -17,6 +17,15 @@
 - **Script generator**: `artifacts/api-server/src/lib/script-generator.ts` — Zod-валидация, retry x3
 - **Script editor**: `artifacts/api-server/src/lib/script-editor.ts` — LLM-правки сценария через чат
 - **image_prompt**: хранится в DB как JSON `{"ru":"...","en":"..."}` в TEXT поле; парсить через `parseImagePrompt()`, сериализовать через `serializeImagePrompt()` из `lib/db/src/types.ts`
+- **Image провайдеры**: `artifacts/api-server/src/lib/images/` (types, factory, kandinsky-gigachat, nano-banana-flash/pro, flux-schnell)
+  - Primary: `kandinsky-gigachat` (GigaChat OAuth2 + Kandinsky, бесплатно, Россия)
+  - Secondary: `nano-banana-flash` (Google Imagen, нужен billing)
+  - Stubs: `nano-banana-pro`, `flux-schnell`
+  - Выбор через env `IMAGE_PROVIDER`, fallback через `IMAGE_FALLBACK_PROVIDER`
+- **Storage**: `/home/deploy/projects/neuroclip/storage/images/{project_id}/{scene_id}.jpg`
+  - URL: `https://neuroklip.ru/storage/images/{project_id}/{scene_id}.jpg`
+  - Nginx раздаёт с `expires 7d` и `Cache-Control: public, immutable`
+  - `image-storage.ts` — `saveImage()`, `imageSeedFromProjectId()`
 
 ## Переменные окружения (`.env` в корне)
 ```
@@ -153,6 +162,33 @@ DeepSeek (`deepseek.ts`) использует нативный `fetch` без п
 ### 12. После изменений в lib/db пересобрать declarations
 `pnpm --filter @workspace/db exec tsc -p tsconfig.json` — обновляет `lib/db/dist/*.d.ts`.
 Без этого api-server typecheck не увидит новые типы/функции из `lib/db/src/types.ts`.
+
+### 14. GigaChat OAuth — singleton token + rate limits
+Токен живёт ~30 минут, кэшируется в модуле. Несколько параллельных запросов могут триггерить 429.
+Решение: `tokenFetchInFlight` — singleton promise на получение токена (dedup).
+Параллельная генерация картинок для GigaChat ЗАПРЕЩЕНА — используй sequential с задержкой 2s.
+Количество бесплатных запросов ограничено (примерно 50-100 изображений в сутки на аккаунт).
+
+### 15. GigaChat TLS — Russian Trusted CA
+`ngw.devices.sberbank.ru` и `gigachat.devices.sberbank.ru` используют Sber CA.
+Используем `rejectUnauthorized: false` в undici Agent — TODO: добавить CA после питча.
+GigaChat доступен напрямую с российских серверов, прокси не нужен.
+
+### 16. GigaChat image ID — в атрибуте src, не fuse
+Ответ GigaChat: `<img src="UUID" fuse="true"/>`. UUID — в `src`, `fuse` — просто флаг.
+Правильный regex: `/<img[^>]+src="([^"]+)"/`.
+
+### 17. Google AI API (nano-banana-flash) — нужен billing
+Ключ `AIzaSy...` работает для Gemini text (quota limited), но Imagen 3 (predict endpoint)
+требует Google Cloud billing. 404 на `imagen-3.0-fast-generate-001` → BILLING_REQUIRED.
+Для production: создать Google Cloud project с enabled Vertex AI API.
+
+### 18. nginx /storage/ — chmod o+rX обязателен
+```bash
+chmod -R o+rX /home/deploy/projects/neuroclip/storage
+```
+Nginx worker (www-data) должен читать файлы. После добавления новых поддиректорий
+пересматривать права. image-storage.ts автоматически ставит 0o644 на каждый файл.
 
 ### 13. image_prompt в Neyroclip_scenes — JSON в TEXT
 Хранится как `{"ru":"...","en":"..."}` в TEXT поле.
