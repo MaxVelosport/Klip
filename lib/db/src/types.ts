@@ -165,6 +165,22 @@ export interface AuditLog {
   created_at: string;
 }
 
+export function parseImagePrompt(raw: string): { ru: string; en: string } {
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (p && typeof p === "object" && "ru" in p && "en" in p) {
+      return { ru: String((p as { ru: unknown }).ru), en: String((p as { en: unknown }).en) };
+    }
+  } catch {
+    // not JSON — treat as legacy plain string
+  }
+  return { ru: raw, en: raw };
+}
+
+export function serializeImagePrompt(ru: string, en: string): string {
+  return JSON.stringify({ ru, en });
+}
+
 export interface BrandKit {
   user_id: string;
   brand_name: string;

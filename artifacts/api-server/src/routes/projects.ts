@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
-import { sbFrom, TABLE, type Project, type Scene } from "@workspace/db";
+import { sbFrom, TABLE, parseImagePrompt, type Project, type Scene } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 
 const router: IRouter = Router();
@@ -38,13 +38,15 @@ export function serializeProject(p: Project, scenes: Scene[] = []) {
 }
 
 export function serializeScene(s: Scene) {
+  const prompt = parseImagePrompt(s.image_prompt);
   return {
     id: s.id,
     projectId: s.project_id,
     orderIndex: s.order_index,
     title: s.title,
     narration: s.narration,
-    imagePrompt: s.image_prompt,
+    imagePrompt: prompt.ru,
+    imagePromptEn: prompt.en,
     imageUrl: s.image_url,
     audioUrl: s.audio_url,
     durationSec: Number(s.duration_sec),

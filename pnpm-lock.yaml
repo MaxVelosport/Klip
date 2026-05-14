@@ -208,6 +208,9 @@ importers:
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
+      undici:
+        specifier: ^7.0.0
+        version: 7.25.0
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -3384,6 +3387,10 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  undici@7.25.0:
+    resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
+    engines: {node: '>=20.18.1'}
+
   unicorn-magic@0.3.0:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
@@ -6280,6 +6287,8 @@ snapshots:
   underscore@1.13.8: {}
 
   undici-types@7.18.2: {}
+
+  undici@7.25.0: {}
 
   unicorn-magic@0.3.0: {}
 

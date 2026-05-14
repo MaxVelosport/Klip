@@ -10,6 +10,7 @@ import {
 } from "docx";
 import { sbFrom, TABLE, type Project, type Scene, type ScriptMessage } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
+import { editScript } from "../lib/script-editor";
 
 const router: Router = Router();
 
@@ -55,124 +56,6 @@ const sendSchema = z.object({
   message: z.string().min(1).max(2000),
 });
 
-type Intent =
-  | "shorten"
-  | "expand"
-  | "punchier"
-  | "formal"
-  | "simpler"
-  | "addHook"
-  | "addCta"
-  | "fixTitles"
-  | "general";
-
-function detectIntent(text: string): Intent {
-  const t = text.toLowerCase();
-  if (/(сократи|короче|укороти|урежь|поменьше|меньше слов)/.test(t)) return "shorten";
-  if (/(подробнее|расширь|добавь|больше деталей|развёрнут|углуби)/.test(t)) return "expand";
-  if (/(ярче|эмоциональн|драйв|живее|веселее|энергичн|интригу)/.test(t)) return "punchier";
-  if (/(формальн|строже|деловой|официальн|нейтральн)/.test(t)) return "formal";
-  if (/(проще|упрост|для новичков|без терминов|понятнее)/.test(t)) return "simpler";
-  if (/(хук|зацеп|вступление|интро|первая фраза|первая сцена)/.test(t)) return "addHook";
-  if (/(призыв|cta|подпис|подпишитесь|переход по ссылке|финал)/.test(t)) return "addCta";
-  if (/(заголовк|названия сцен|тайтл)/.test(t)) return "fixTitles";
-  return "general";
-}
-
-function trimSentences(text: string, keep: number): string {
-  const parts = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-  if (parts.length <= keep) return text;
-  return parts.slice(0, keep).join(" ");
-}
-
-function applyEdits(
-  scenes: Array<{ id: string; orderIndex: number; title: string; narration: string; durationSec: string }>,
-  intent: Intent,
-  userMessage: string,
-): { updates: Array<{ id: string; title?: string; narration?: string }>; summary: string } {
-  const updates: Array<{ id: string; title?: string; narration?: string }> = [];
-  switch (intent) {
-    case "shorten": {
-      for (const s of scenes) {
-        const next = trimSentences(s.narration, Math.max(1, Math.ceil(s.narration.split(/(?<=[.!?])\s+/).length / 2)));
-        if (next !== s.narration) updates.push({ id: s.id, narration: next });
-      }
-      return { updates, summary: `Сократил повествование во всех сценах примерно вдвое.` };
-    }
-    case "expand": {
-      for (const s of scenes) {
-        const addition = " Дополним мысль: важно показать конкретный пример и сделать акцент на пользе для зрителя.";
-        if (!s.narration.includes(addition)) updates.push({ id: s.id, narration: s.narration.trim() + addition });
-      }
-      return { updates, summary: `Добавил по одному развёрнутому предложению в каждую сцену.` };
-    }
-    case "punchier": {
-      for (const s of scenes) {
-        const lively = s.narration
-          .replace(/\bочень\b/gi, "невероятно")
-          .replace(/\.\s/g, "! ")
-          .replace(/!!/g, "!");
-        if (lively !== s.narration) updates.push({ id: s.id, narration: lively });
-      }
-      return { updates, summary: `Сделал текст более эмоциональным и динамичным.` };
-    }
-    case "formal": {
-      for (const s of scenes) {
-        const calm = s.narration.replace(/!+/g, ".").replace(/\s+/g, " ").trim();
-        if (calm !== s.narration) updates.push({ id: s.id, narration: calm });
-      }
-      return { updates, summary: `Привёл повествование к нейтрально-деловому тону.` };
-    }
-    case "simpler": {
-      for (const s of scenes) {
-        const simple =
-          "Простыми словами: " +
-          s.narration
-            .replace(/\b(специфический|концептуальный|парадигма|синергия|оптимизация)\b/gi, "понятный подход");
-        if (simple !== s.narration) updates.push({ id: s.id, narration: simple });
-      }
-      return { updates, summary: `Упростил формулировки и убрал тяжёлые термины.` };
-    }
-    case "addHook": {
-      const first = scenes[0];
-      if (first) {
-        const hook = "Подождите смотреть дальше — то, о чём расскажем сейчас, изменит ваш взгляд на тему. ";
-        if (!first.narration.startsWith(hook))
-          updates.push({ id: first.id, narration: hook + first.narration });
-      }
-      return { updates, summary: `Добавил цепляющий хук в первую сцену.` };
-    }
-    case "addCta": {
-      const last = scenes[scenes.length - 1];
-      if (last) {
-        const cta = " Если было полезно — поставьте лайк и подпишитесь, чтобы не пропустить следующий выпуск.";
-        if (!last.narration.includes(cta))
-          updates.push({ id: last.id, narration: last.narration.trim() + cta });
-      }
-      return { updates, summary: `Добавил призыв к действию в финальную сцену.` };
-    }
-    case "fixTitles": {
-      for (const s of scenes) {
-        const t = s.title.replace(/\s+/g, " ").trim();
-        const next = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
-        if (next !== s.title) updates.push({ id: s.id, title: next });
-      }
-      return { updates, summary: `Унифицировал стиль заголовков сцен.` };
-    }
-    default: {
-      const note = `\n\n[Учтено: ${userMessage.slice(0, 80)}]`;
-      const target = scenes[0];
-      if (target && !target.narration.includes(note)) {
-        updates.push({ id: target.id, narration: target.narration + note });
-      }
-      return {
-        updates,
-        summary: `Учёл ваше пожелание и оставил пометку в первой сцене. Уточните, что именно поправить — например: «сократи», «сделай ярче», «добавь призыв в конце».`,
-      };
-    }
-  }
-}
-
 router.post(
   "/projects/:id/script/messages",
   requireAuth,
@@ -213,20 +96,28 @@ router.post(
       return;
     }
 
-    const intent = detectIntent(userMsg);
-    const sceneInputs = (scenes as Scene[]).map((s) => ({
-      id: s.id,
-      orderIndex: s.order_index,
-      title: s.title,
-      narration: s.narration,
-      durationSec: s.duration_sec,
-    }));
-    const { updates, summary } = applyEdits(sceneInputs, intent, userMsg);
+    let editResult;
+    try {
+      editResult = await editScript(scenes as Scene[], userMsg);
+    } catch (err) {
+      console.error("[script-chat] LLM error:", (err as Error).message);
+      const fallbackReply = "LLM временно недоступен. Попробуйте ещё раз через минуту.";
+      const { data: m, error } = await sbFrom(TABLE.scriptMessages)
+        .insert({ project_id: p.id, user_id: req.userId!, role: "assistant", content: fallbackReply })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      res.json({ assistant: serializeMsg(m as ScriptMessage), changedSceneIds: [] });
+      return;
+    }
+
+    const { updates, summary } = editResult;
 
     for (const u of updates) {
       const set: Record<string, string> = {};
       if (u.title !== undefined) set.title = u.title;
       if (u.narration !== undefined) set.narration = u.narration;
+      if (u.image_prompt !== undefined) set.image_prompt = u.image_prompt;
       if (Object.keys(set).length === 0) continue;
       await sbFrom(TABLE.scenes).update(set).eq("id", u.id);
     }
@@ -234,8 +125,7 @@ router.post(
     const changedSceneIds = updates.map((u) => u.id);
     const diffSummary =
       updates.length === 0 ? "Без изменений сцен." : `Обновлено сцен: ${updates.length}.`;
-    const replyContent =
-      updates.length === 0 ? `${summary}` : `${summary} ${diffSummary}`;
+    const replyContent = updates.length === 0 ? summary : `${summary} ${diffSummary}`;
 
     const { data: assistant, error: aInsErr } = await sbFrom(TABLE.scriptMessages)
       .insert({

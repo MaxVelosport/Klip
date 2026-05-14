@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, sbRpc, TABLE, type Project, type Scene, type RenderJob } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, serializeImagePrompt, type Project, type Scene, type RenderJob } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
-import { serializeProject, serializeScene } from "./projects";
-import { generateScript, pickImage, SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
+import { serializeProject } from "./projects";
+import { pickImage, SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
+import { generateScript } from "../lib/script-generator";
 import {
   computeProjectCost,
   parseQuality,
@@ -108,25 +109,44 @@ router.post("/projects/:id/generate-script", requireAuth, async (req: AuthedRequ
   const p = await ownProject(req);
   if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
 
+  let generated;
+  try {
+    generated = await generateScript({
+      title: p.title,
+      topicDescription: p.topic_description,
+      category: p.category ?? "educational",
+      targetDurationSec: p.target_duration_sec,
+      visualStyle: p.visual_style,
+      voiceId: p.voice_id,
+      aspectRatio: p.aspect_ratio,
+      addSubtitles: p.add_subtitles,
+    });
+  } catch (err) {
+    console.error("[generate-script] LLM error:", (err as Error).message);
+    await sbFrom(TABLE.auditLog).insert({
+      user_id: req.userId!,
+      action: "script_failed",
+      entity_type: "project",
+      entity_id: p.id,
+      message: `LLM ошибка: ${(err as Error).message.slice(0, 200)}`,
+    });
+    res.status(503).json({ error: "LLM временно недоступен, попробуйте через минуту" });
+    return;
+  }
+
   await sbFrom(TABLE.scenes).delete().eq("project_id", p.id);
 
-  const generated = generateScript(
-    p.topic_description,
-    p.target_duration_sec,
-    p.visual_style,
-    (p.category ?? "educational") as Parameters<typeof generateScript>[3],
-  );
   let totalDuration = 0;
   for (let i = 0; i < generated.length; i++) {
     const s = generated[i]!;
-    totalDuration += s.durationSec;
+    totalDuration += s.duration_sec;
     await sbFrom(TABLE.scenes).insert({
       project_id: p.id,
       order_index: i,
       title: s.title,
       narration: s.narration,
-      image_prompt: s.imagePrompt,
-      duration_sec: String(s.durationSec),
+      image_prompt: serializeImagePrompt(s.image_prompt_ru, s.image_prompt_en),
+      duration_sec: String(s.duration_sec),
     });
   }
   await sbFrom(TABLE.projects).update({

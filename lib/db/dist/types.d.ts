@@ -149,6 +149,11 @@ export interface AuditLog {
     metadata: Record<string, unknown>;
     created_at: string;
 }
+export declare function parseImagePrompt(raw: string): {
+    ru: string;
+    en: string;
+};
+export declare function serializeImagePrompt(ru: string, en: string): string;
 export interface BrandKit {
     user_id: string;
     brand_name: string;

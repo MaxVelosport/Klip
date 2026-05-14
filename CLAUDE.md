@@ -10,6 +10,13 @@
 - **Drizzle-схемы**: `lib/db/src/schema/*.ts` — только как референс, в runtime не используются
 - **Supabase клиент**: `lib/db/src/sb-client.ts` → `sbFrom()`, `sbRpc()`, `TABLE` map
 - **Миграции**: `scripts/src/apply-migrations.ts` → `/pg/query` endpoint
+- **LLM провайдеры**: DeepSeek (primary) + Claude (fallback) + GigaChat (stub)
+  - Модуль: `artifacts/api-server/src/lib/llm/` (types, deepseek, claude, gigachat, factory)
+  - Выбор через env `LLM_PROVIDER`, fallback через `LLM_FALLBACK`
+  - Прокси `HTTPS_PROXY` используется ТОЛЬКО для Anthropic (через `undici` ProxyAgent)
+- **Script generator**: `artifacts/api-server/src/lib/script-generator.ts` — Zod-валидация, retry x3
+- **Script editor**: `artifacts/api-server/src/lib/script-editor.ts` — LLM-правки сценария через чат
+- **image_prompt**: хранится в DB как JSON `{"ru":"...","en":"..."}` в TEXT поле; парсить через `parseImagePrompt()`, сериализовать через `serializeImagePrompt()` из `lib/db/src/types.ts`
 
 ## Переменные окружения (`.env` в корне)
 ```
@@ -130,3 +137,25 @@ scripts/node_modules/.bin/tsx --env-file=.env scripts/src/apply-migrations.ts
 pnpm --filter @workspace/api-server run build
 PORT=20274 BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/neuroclip run build
 ```
+
+## Ловушки — Этап 5 (LLM)
+
+### 10. LLM JSON mode: DeepSeek vs Claude
+DeepSeek поддерживает `response_format: { type: "json_object" }` нативно.
+Claude — только через system prompt "Respond only with valid JSON. Do not include markdown code blocks."
+Эмуляция в `claude.ts` добавляет hint в systemPrompt автоматически при `jsonMode: true`.
+
+### 11. undici ProxyAgent — ТОЛЬКО для Anthropic
+`ProxyAgent` из `undici` используется ТОЛЬКО в `claude.ts` для запросов к `api.anthropic.com`.
+DeepSeek (`deepseek.ts`) использует нативный `fetch` без прокси — прямой доступ из РФ работает.
+`HTTPS_PROXY` в env существует, но Node.js native fetch его НЕ подхватывает автоматически.
+
+### 12. После изменений в lib/db пересобрать declarations
+`pnpm --filter @workspace/db exec tsc -p tsconfig.json` — обновляет `lib/db/dist/*.d.ts`.
+Без этого api-server typecheck не увидит новые типы/функции из `lib/db/src/types.ts`.
+
+### 13. image_prompt в Neyroclip_scenes — JSON в TEXT
+Хранится как `{"ru":"...","en":"..."}` в TEXT поле.
+Парсить: `parseImagePrompt(raw)` → `{ ru, en }` (graceful fallback для старых plain-string данных).
+Сериализовать: `serializeImagePrompt(ru, en)` → JSON string.
+`serializeScene()` в `projects.ts` автоматически парсит и добавляет `imagePromptEn` в ответ.
