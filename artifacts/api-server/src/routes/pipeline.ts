@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, sbRpc, TABLE, serializeImagePrompt, type Project, type Scene, type RenderJob } from "@workspace/db";
+import { sbFrom, sbRpc, TABLE, parseImagePrompt, serializeImagePrompt, type Project, type Scene, type RenderJob } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeProject } from "./projects";
-import { pickImage, SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
+import { SAMPLE_AUDIO_URL, SAMPLE_VIDEO_URL } from "../lib/mock-content";
 import { generateScript } from "../lib/script-generator";
+import { getImageProviderWithFallback } from "../lib/images/factory";
+import { saveImage, imageSeedFromProjectId } from "../lib/image-storage";
 import {
   computeProjectCost,
   parseQuality,
@@ -169,10 +171,47 @@ router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequ
   if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
 
   const scenes = await loadScenes(p.id);
-  for (const s of scenes) {
-    await sbFrom(TABLE.scenes).update({ image_url: pickImage(s.id, s.order_index) }).eq("id", s.id);
+  if (scenes.length === 0) {
+    res.status(400).json({ error: "Нет сцен — сначала сгенерируйте сценарий" });
+    return;
   }
-  const thumb = scenes[0] ? pickImage(scenes[0].id, 0) : null;
+
+  const provider = getImageProviderWithFallback(p.image_provider);
+  const seed = imageSeedFromProjectId(p.id);
+  const aspectRatio = (p.aspect_ratio as "16:9" | "9:16" | "1:1") ?? "16:9";
+
+  // GigaChat has strict rate limits — process sequentially with small delay
+  const isKandinsky = provider.name.includes("kandinsky");
+  const INTER_SCENE_DELAY_MS = isKandinsky ? 2000 : 0;
+
+  const results: Array<PromiseFulfilledResult<{ sceneId: string; url: string }> | PromiseRejectedResult> = [];
+  for (const s of scenes) {
+    try {
+      const prompt = parseImagePrompt(s.image_prompt);
+      const result = await provider.generate({
+        prompt: prompt.en || prompt.ru,
+        promptRu: prompt.ru,
+        aspectRatio,
+        seed: seed + s.order_index,
+      });
+      const url = await saveImage(p.id, s.id, result.buffer, result.mimeType);
+      await sbFrom(TABLE.scenes).update({ image_url: url }).eq("id", s.id);
+      results.push({ status: "fulfilled", value: { sceneId: s.id, url } });
+    } catch (err) {
+      results.push({ status: "rejected", reason: err });
+    }
+    if (INTER_SCENE_DELAY_MS > 0 && s !== scenes[scenes.length - 1]) {
+      await new Promise((r) => setTimeout(r, INTER_SCENE_DELAY_MS));
+    }
+  }
+
+  const succeeded = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length > 0) {
+    console.warn(`[generate-images] ${failed.length} scenes failed:`, failed.map((r) => (r as PromiseRejectedResult).reason?.message));
+  }
+
+  const thumb = (results[0]?.status === "fulfilled" ? (results[0] as PromiseFulfilledResult<{ url: string }>).value.url : null);
   await sbFrom(TABLE.projects).update({
     status: "images_ready",
     thumbnail_url: thumb,
@@ -183,7 +222,7 @@ router.post("/projects/:id/generate-images", requireAuth, async (req: AuthedRequ
     action: "images_generated",
     entity_type: "project",
     entity_id: p.id,
-    message: `Сгенерированы изображения`,
+    message: `Сгенерированы изображения (${succeeded}/${scenes.length} успешно, провайдер: ${provider.name})`,
   });
   await returnProject(p, res);
 });

@@ -31,6 +31,7 @@ export function serializeProject(p: Project, scenes: Scene[] = []) {
     finalVideoUrl: p.final_video_url,
     thumbnailUrl: p.thumbnail_url,
     errorMessage: p.error_message,
+    imageProvider: p.image_provider ?? "nano-banana-flash",
     scenes: scenes.map(serializeScene),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
@@ -109,6 +110,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     addSubtitles,
     category,
     aspectRatio,
+    imageProvider,
   } = req.body ?? {};
   if (!title || !topicDescription || !targetDurationSec || !visualStyle || !voiceId) {
     res.status(400).json({ error: "Заполните все обязательные поля проекта" });
@@ -121,6 +123,10 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const cat = typeof category === "string" && ALLOWED_CATEGORIES.has(category) ? category : "educational";
   const ALLOWED_RATIOS = new Set(["16:9", "9:16", "1:1"]);
   const ratio = typeof aspectRatio === "string" && ALLOWED_RATIOS.has(aspectRatio) ? aspectRatio : "16:9";
+  const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell"]);
+  const imgProvider = typeof imageProvider === "string" && ALLOWED_PROVIDERS.has(imageProvider)
+    ? imageProvider
+    : (process.env.IMAGE_PROVIDER ?? "nano-banana-flash");
 
   const { data: created, error } = await sbFrom(TABLE.projects).insert({
     user_id: req.userId!,
@@ -133,6 +139,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     background_music_id: backgroundMusicId ? String(backgroundMusicId) : null,
     add_subtitles: Boolean(addSubtitles),
     aspect_ratio: ratio,
+    image_provider: imgProvider,
     status: "draft",
     current_step: 1,
   }).select().single();

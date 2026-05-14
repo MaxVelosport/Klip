@@ -48,6 +48,7 @@ export interface Project {
   final_video_url: string | null;
   thumbnail_url: string | null;
   error_message: string | null;
+  image_provider: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

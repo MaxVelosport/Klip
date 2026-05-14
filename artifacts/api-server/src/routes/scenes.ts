@@ -1,12 +1,13 @@
 import { Router, type IRouter } from "express";
-import { sbFrom, TABLE, type Scene } from "@workspace/db";
+import { sbFrom, TABLE, parseImagePrompt, type Project, type Scene } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../lib/session";
 import { serializeScene } from "./projects";
-import { pickImage } from "../lib/mock-content";
+import { getImageProviderWithFallback } from "../lib/images/factory";
+import { saveImage, imageSeedFromProjectId } from "../lib/image-storage";
 
 const router: IRouter = Router();
 
-async function ownProject(req: AuthedRequest) {
+async function ownProject(req: AuthedRequest): Promise<Project | null> {
   const id = String(req.params.id);
   const { data: p } = await sbFrom(TABLE.projects)
     .select("*")
@@ -14,7 +15,7 @@ async function ownProject(req: AuthedRequest) {
     .eq("user_id", req.userId!)
     .is("deleted_at", null)
     .maybeSingle();
-  return p ?? null;
+  return (p as Project | null) ?? null;
 }
 
 router.post("/projects/:id/scenes", requireAuth, async (req: AuthedRequest, res) => {
@@ -153,12 +154,29 @@ router.post(
       .select("*")
       .eq("project_id", p.id)
       .order("order_index", { ascending: true });
-    for (const s of (scenes ?? []) as Scene[]) {
-      const seed = `${s.id}:${Date.now()}:${Math.random()}`;
-      await sbFrom(TABLE.scenes)
-        .update({ image_url: pickImage(seed, s.order_index) })
-        .eq("id", s.id);
-    }
+
+    const provider = getImageProviderWithFallback(p.image_provider);
+    const seed = imageSeedFromProjectId(p.id);
+    const aspectRatio = (p.aspect_ratio as "16:9" | "9:16" | "1:1") ?? "16:9";
+
+    await Promise.allSettled(
+      ((scenes ?? []) as Scene[]).map(async (s) => {
+        try {
+          const prompt = parseImagePrompt(s.image_prompt);
+          const result = await provider.generate({
+            prompt: prompt.en || prompt.ru,
+            promptRu: prompt.ru,
+            aspectRatio,
+            seed: seed + s.order_index,
+          });
+          const url = await saveImage(p.id, s.id, result.buffer, result.mimeType);
+          await sbFrom(TABLE.scenes).update({ image_url: url }).eq("id", s.id);
+        } catch (err) {
+          console.warn(`[regenerate-all] scene ${s.id} failed:`, (err as Error).message);
+        }
+      }),
+    );
+
     const { data: list } = await sbFrom(TABLE.scenes)
       .select("*")
       .eq("project_id", p.id)
@@ -186,13 +204,26 @@ router.post(
       res.status(404).json({ error: "Сцена не найдена" });
       return;
     }
-    const existingScene = existing as Scene;
-    const seed = `${existingScene.id}:${Date.now()}`;
-    await sbFrom(TABLE.scenes)
-      .update({ image_url: pickImage(seed, existingScene.order_index) })
-      .eq("id", sceneId);
-    const { data: s } = await sbFrom(TABLE.scenes).select("*").eq("id", sceneId).single();
-    res.json(serializeScene(s!));
+    const s = existing as Scene;
+    const provider = getImageProviderWithFallback(p.image_provider);
+    const aspectRatio = (p.aspect_ratio as "16:9" | "9:16" | "1:1") ?? "16:9";
+    try {
+      const prompt = parseImagePrompt(s.image_prompt);
+      const result = await provider.generate({
+        prompt: prompt.en || prompt.ru,
+        promptRu: prompt.ru,
+        aspectRatio,
+        seed: Date.now(),
+      });
+      const url = await saveImage(p.id, s.id, result.buffer, result.mimeType);
+      await sbFrom(TABLE.scenes).update({ image_url: url }).eq("id", sceneId);
+    } catch (err) {
+      console.warn(`[regenerate-image] scene ${sceneId} failed:`, (err as Error).message);
+      res.status(503).json({ error: "Не удалось сгенерировать изображение, попробуйте снова" });
+      return;
+    }
+    const { data: updated } = await sbFrom(TABLE.scenes).select("*").eq("id", sceneId).single();
+    res.json(serializeScene(updated!));
   },
 );
 
