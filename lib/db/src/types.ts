@@ -50,6 +50,7 @@ export interface Project {
   error_message: string | null;
   image_provider: string;
   tts_provider: string;
+  video_provider: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -64,6 +65,7 @@ export interface Scene {
   image_prompt: string;
   image_url: string | null;
   audio_url: string | null;
+  video_url: string | null;
   duration_sec: string;
   animation_type: string;
   transition_type: string;

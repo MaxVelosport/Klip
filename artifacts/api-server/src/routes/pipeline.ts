@@ -9,6 +9,8 @@ import { getTTSWithFallback } from "../lib/tts/factory";
 import { saveAudio } from "../lib/audio-storage";
 import { getVideoRenderer } from "../lib/video/factory";
 import type { SceneAsset } from "../lib/video/types";
+import { getVideoClipProvider } from "../lib/videos/factory";
+import { saveClip } from "../lib/videos/clip-storage";
 import {
   computeProjectCost,
   parseQuality,
@@ -275,6 +277,72 @@ router.post("/projects/:id/generate-audio", requireAuth, async (req: AuthedReque
   await returnProject(p, res);
 });
 
+router.post("/projects/:id/generate-clips", requireAuth, async (req: AuthedRequest, res) => {
+  const p = await ownProject(req);
+  if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
+
+  const scenes = await loadScenes(p.id);
+  const sceneIds: string[] | undefined = req.body?.scene_ids;
+  const videoProviderName: string = req.body?.video_provider ?? "seedance";
+
+  const targetScenes = sceneIds
+    ? scenes.filter(s => sceneIds.includes(s.id))
+    : scenes;
+
+  if (targetScenes.length === 0) {
+    res.status(400).json({ error: "Нет сцен для генерации клипов" });
+    return;
+  }
+
+  const hasMissingImages = targetScenes.some(s => !s.image_url);
+  if (hasMissingImages) {
+    res.status(400).json({ error: "Все сцены должны иметь изображения перед генерацией клипов" });
+    return;
+  }
+
+  await sbFrom(TABLE.projects).update({
+    video_provider: videoProviderName,
+  } as Record<string, unknown>).eq("id", p.id);
+
+  // Fire-and-forget: Kling Video ~3 min/clip, too slow for synchronous HTTP
+  const provider = getVideoClipProvider(videoProviderName);
+  const aspectRatio = (p.aspect_ratio as "16:9" | "9:16" | "1:1") ?? "16:9";
+  const STORAGE_BASE_URL = "https://neuroklip.ru";
+
+  (async () => {
+    let succeeded = 0;
+    for (const s of targetScenes) {
+      if (s.video_url) { succeeded++; continue; }
+      try {
+        const imageUrl = s.image_url!.startsWith("http")
+          ? s.image_url!
+          : `${STORAGE_BASE_URL}${s.image_url!}`;
+        const result = await provider.generate({
+          imageUrl,
+          prompt: "smooth camera movement, cinematic, gentle motion",
+          durationSec: Math.min(10, Math.max(3, Number(s.duration_sec) || 5)),
+          aspectRatio,
+        });
+        const clipUrl = await saveClip(p.id, s.id, result.buffer);
+        await sbFrom(TABLE.scenes).update({ video_url: clipUrl }).eq("id", s.id);
+        succeeded++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[generate-clips] scene ${s.id} failed: ${msg}`);
+      }
+    }
+    await sbFrom(TABLE.auditLog).insert({
+      user_id: req.userId!,
+      action: "clips_generated",
+      entity_type: "project",
+      entity_id: p.id,
+      message: `Видеоклипы сгенерированы (${succeeded}/${targetScenes.length}, провайдер: ${provider.name})`,
+    });
+  })().catch(err => console.error("[generate-clips] background error:", err));
+
+  await returnProject(p, res);
+});
+
 router.post("/projects/:id/cost-estimate", requireAuth, async (req: AuthedRequest, res) => {
   const p = await ownProject(req);
   if (!p) { res.status(404).json({ error: "Проект не найден" }); return; }
@@ -369,6 +437,7 @@ async function startRenderJob(opts: {
           orderIndex: s.order_index,
           imageUrl: toFsPath(s.image_url!),
           audioUrl: toFsPath(s.audio_url!),
+          videoUrl: s.video_url ? toFsPath(s.video_url) : undefined,
           durationSec: Number(s.duration_sec) || 7,
           narration: s.narration,
         }));

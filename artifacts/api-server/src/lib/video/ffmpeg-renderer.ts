@@ -97,26 +97,47 @@ export class FFmpegRenderer implements VideoRenderer {
         clipDurations.push(durationSec);
 
         const clipPath = join(tmpDir, `clip-${i}.mp4`);
-        const effect = randomEffect(i);
-        const kbFilter = kenBurnsFilterChain(durationSec, outW, outH, effect, i * 3 + 1);
 
-        await runFFmpeg([
-          "-loop", "1",
-          "-t", String(durationSec),
-          "-i", scene.imageUrl,
-          "-i", scene.audioUrl,
-          "-filter_complex", `[0:v]${kbFilter}[v]`,
-          "-map", "[v]",
-          "-map", "1:a",
-          "-c:v", "libx264",
-          "-preset", "fast",
-          "-b:v", VIDEO_BITRATE,
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-pix_fmt", "yuv420p",
-          "-shortest",
-          "-y", clipPath,
-        ]);
+        if (scene.videoUrl) {
+          // AI-generated video clip: scale to output size + trim/pad to audio duration
+          await runFFmpeg([
+            "-i", scene.videoUrl,
+            "-i", scene.audioUrl,
+            "-filter_complex",
+            `[0:v]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},setsar=1,fps=${FPS}[v]`,
+            "-map", "[v]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-b:v", VIDEO_BITRATE,
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-pix_fmt", "yuv420p",
+            "-shortest",
+            "-y", clipPath,
+          ]);
+        } else {
+          // Static image with Ken Burns effect
+          const effect = randomEffect(i);
+          const kbFilter = kenBurnsFilterChain(durationSec, outW, outH, effect, i * 3 + 1);
+          await runFFmpeg([
+            "-loop", "1",
+            "-t", String(durationSec),
+            "-i", scene.imageUrl,
+            "-i", scene.audioUrl,
+            "-filter_complex", `[0:v]${kbFilter}[v]`,
+            "-map", "[v]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-b:v", VIDEO_BITRATE,
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-pix_fmt", "yuv420p",
+            "-shortest",
+            "-y", clipPath,
+          ]);
+        }
 
         clipPaths.push(clipPath);
         progress("rendering_scenes", i + 1);

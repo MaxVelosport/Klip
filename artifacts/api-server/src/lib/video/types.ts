@@ -1,10 +1,11 @@
 export interface SceneAsset {
   id: string;
   orderIndex: number;
-  imageUrl: string;   // absolute path on FS
-  audioUrl: string;   // absolute path on FS
+  imageUrl: string;    // absolute path on FS
+  audioUrl: string;    // absolute path on FS
+  videoUrl?: string;   // absolute path on FS — if set, use clip instead of image+kenburns
   durationSec: number;
-  narration: string;  // for subtitles
+  narration: string;   // for subtitles
 }
 
 export interface RenderParams {

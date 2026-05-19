@@ -2,6 +2,7 @@ import { NanoBananaFlashProvider } from "./nano-banana-flash.js";
 import { NanoBananaProProvider } from "./nano-banana-pro.js";
 import { KandinskyGigaChatProvider } from "./kandinsky-gigachat.js";
 import { FluxSchnellProvider } from "./flux-schnell.js";
+import { FluxProProvider } from "./flux-pro.js";
 import { PixabayProvider } from "./pixabay.js";
 import type { ImageGenerationParams, ImageGenerationResult, ImageProvider } from "./types.js";
 
@@ -17,6 +18,7 @@ export function getImageProvider(name?: string): ImageProvider {
     case "gigachat": return new KandinskyGigaChatProvider();
     case "flux-schnell":
     case "flux": return new FluxSchnellProvider();
+    case "flux-pro": return new FluxProProvider();
     case "pixabay": return new PixabayProvider();
     default: throw new Error(`Unknown image provider: ${provider}`);
   }

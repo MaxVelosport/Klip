@@ -33,6 +33,7 @@ export function serializeProject(p: Project, scenes: Scene[] = []) {
     errorMessage: p.error_message,
     imageProvider: p.image_provider ?? "kandinsky-gigachat",
     ttsProvider: (p as Project & { tts_provider?: string }).tts_provider ?? "salute-speech",
+    videoProvider: (p as Project & { video_provider?: string | null }).video_provider ?? "ken-burns",
     scenes: scenes.map(serializeScene),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
@@ -51,6 +52,7 @@ export function serializeScene(s: Scene) {
     imagePromptEn: prompt.en,
     imageUrl: s.image_url,
     audioUrl: s.audio_url,
+    videoUrl: s.video_url,
     durationSec: Number(s.duration_sec),
     animationType: s.animation_type,
     transitionType: s.transition_type,
@@ -113,6 +115,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     aspectRatio,
     imageProvider,
     ttsProvider,
+    videoProvider,
   } = req.body ?? {};
   if (!title || !topicDescription || !targetDurationSec || !visualStyle || !voiceId) {
     res.status(400).json({ error: "Заполните все обязательные поля проекта" });
@@ -125,7 +128,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const cat = typeof category === "string" && ALLOWED_CATEGORIES.has(category) ? category : "educational";
   const ALLOWED_RATIOS = new Set(["16:9", "9:16", "1:1"]);
   const ratio = typeof aspectRatio === "string" && ALLOWED_RATIOS.has(aspectRatio) ? aspectRatio : "16:9";
-  const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell", "pixabay"]);
+  const ALLOWED_PROVIDERS = new Set(["nano-banana-flash", "nano-banana-pro", "kandinsky-gigachat", "flux-schnell", "flux-pro", "pixabay"]);
   const imgProvider = typeof imageProvider === "string" && ALLOWED_PROVIDERS.has(imageProvider)
     ? imageProvider
     : (process.env.IMAGE_PROVIDER ?? "kandinsky-gigachat");
@@ -133,6 +136,10 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
   const ttsProv = typeof ttsProvider === "string" && ALLOWED_TTS.has(ttsProvider)
     ? ttsProvider
     : (process.env.TTS_PROVIDER ?? "salute-speech");
+  const ALLOWED_VIDEO = new Set(["ken-burns", "seedance", "seedance-fast"]);
+  const videoProv = typeof videoProvider === "string" && ALLOWED_VIDEO.has(videoProvider)
+    ? videoProvider
+    : "ken-burns";
 
   const { data: created, error } = await sbFrom(TABLE.projects).insert({
     user_id: req.userId!,
@@ -147,6 +154,7 @@ router.post("/projects", requireAuth, async (req: AuthedRequest, res) => {
     aspect_ratio: ratio,
     image_provider: imgProvider,
     tts_provider: ttsProv,
+    video_provider: videoProv,
     status: "draft",
     current_step: 1,
   }).select().single();

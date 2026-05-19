@@ -19,6 +19,7 @@ import Admin from "@/pages/app/admin";
 import Templates from "@/pages/app/templates";
 import BrandKitPage from "@/pages/app/brand";
 import SharePage from "@/pages/share";
+import CreateBuilder from "@/pages/CreateBuilder";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ function Router() {
               <Route path="/app/projects/new">
                 <ProjectWizard isNew />
               </Route>
+              <Route path="/app/projects/builder" component={CreateBuilder} />
               <Route path="/app/projects/:id">
                 {params => <ProjectWizard projectId={params.id} />}
               </Route>

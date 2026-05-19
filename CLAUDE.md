@@ -249,3 +249,37 @@ curl работает потому что системный HTTPS_PROXY в env 
 429 ошибки случаются после 4-5 последовательных запросов даже с 2s задержкой.
 Решение: RETRY_DELAYS_MS = [2000, 5000, 10000, 20000, 40000] — 5 попыток с ростом задержки.
 Между сценами: 3s (было 2s). Fallback: kandinsky → pixabay (через proxy).
+
+### 26. Yandex SpeechKit — FOLDER_ID берётся из сервис-аккаунта, не из консоли
+YANDEX_FOLDER_ID должен совпадать с folder ID сервис-аккаунта API ключа.
+При несовпадении: HTTP 401 "Specified folder ID 'X' does not match with service account folder ID 'Y'".
+Правильный ID возвращается прямо в тексте ошибки — взять оттуда.
+Аутентификация: `Authorization: Api-Key ${YANDEX_API_KEY}` (не Bearer). folderId передаётся в form-data.
+
+### 27. ElevenLabs — geo-блокировка России
+ElevenLabs редиректит российские IP на страницу ограничений (help.elevenlabs.io).
+Даже через HTTPS_PROXY прокси — redirect на help-страницу (не audio).
+Код реализован правильно, но не работает с российских серверов. Работает из EU/US.
+
+### 28. fal.ai — НЕ требует прокси, использовать синхронный endpoint
+fal.ai (queue.fal.run, fal.run) доступен напрямую без прокси с российских серверов.
+Для Flux Pro: синхронный `POST https://fal.run/fal-ai/flux-pro/v1.1` возвращает результат сразу.
+НЕ использовать queue API для Flux Pro — response_url возвращает 404 (путь без версии).
+Для image-to-video (Kling): синхронный endpoint `fal.run` работает но занимает ~3 мин/клип.
+
+### 29. fal.ai queue response_url — НЕ работает для versioned endpoints
+`response_url` из submit response: `https://queue.fal.run/fal-ai/MODEL/requests/{id}` 
+При GET возвращает `{"detail":"Path /v1.5/pro/image-to-video/submit not found"}` — 404.
+Причина: versioned path (v1.5/pro/...) не включается в routing для result fetch.
+Workaround: использовать синхронный `fal.run` endpoint вместо queue.
+
+### 30. fal.ai Seedance — правильное название модели
+`fal-ai/seedance-2-fast` не существует. `fal-ai/seedance-2` — существует но result URL сломан.
+Рабочий AI image-to-video на fal.ai: `fal-ai/kling-video/v1.5/pro/image-to-video` (Kling Video).
+Синхронный endpoint: `https://fal.run/fal-ai/kling-video/v1.5/pro/image-to-video` → ~3 мин/5сек клип.
+`SeedanceProvider` реализован через Kling Video backend (публично называем "AI Video").
+
+### 31. generate-clips — fire-and-forget из-за долгой генерации
+Kling Video занимает ~3 мин на 5-секундный клип. generate-clips должен быть async (fire-and-forget)
+иначе HTTP timeout даже при 600s nginx. Реализовано: endpoint возвращает проект сразу,
+генерация идёт в фоне. Frontend может поллить scenes.video_url для отслеживания прогресса.
